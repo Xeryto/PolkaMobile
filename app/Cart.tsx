@@ -13,6 +13,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import Cart2 from './assets/Cart2.svg';
+import Heart2 from './assets/Heart2.svg';
+import HeartFilled from './assets/HeartFilled.svg';
+import More from './assets/More.svg';
+import Seen from './assets/Seen.svg';
+
 interface CardItem {
   id: number;
   name: string;
@@ -265,10 +271,7 @@ const Cart = () => {
           />
           </Animated.View>  
           <Pressable style={styles.dotsButton} onPress={() => console.log("pressed")}>
-            <Image 
-              source={require('./assets/More.png')}
-              style={styles.dotsImage}
-            />
+            <More width={23} height={33} />
           </Pressable>
         </View>
 
@@ -283,40 +286,25 @@ const Cart = () => {
           ]}
         >
           <Pressable style={styles.button} onPress={handleCartPress}>
-            <Image 
-              source={require('./assets/Cart2.png')}
-              style={styles.icon}
-            />
+            <Cart2 width={33} height={33} />
           </Pressable>
           <Pressable 
             style={styles.button} 
             onPress={() => swipeCard('up')}
           >
-            <Image 
-              source={require('./assets/Seen.png')}
-              style={styles.icon}
-            />
+            <Seen width={33} height={33} />
           </Pressable>
           <Pressable 
-            style={styles.button} 
-            onPress={handleLikePress}
-          >
-            <Animated.Image 
-              source={
-                isLiked 
-                  ? require('./assets/HeartFilled.png') 
-                  : require('./assets/Heart2.png')
+              style={styles.button} 
+              onPress={handleLikePress}
+            >
+              {isLiked ? (
+                <HeartFilled width={33} height={33} />
+              ) : (
+                <Heart2 width={33} height={33} />
+              )
               }
-              style={[
-                styles.icon,
-                { 
-                  transform: [{ 
-                    scale: heartScale 
-                  }]
-                }
-              ]}
-            />
-          </Pressable>
+            </Pressable>
         </Animated.View>
 
         {/* Size Selection Circles */}

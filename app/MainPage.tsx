@@ -13,6 +13,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import Cart2 from './assets/Cart2.svg';
+import Heart2 from './assets/Heart2.svg';
+import HeartFilled from './assets/HeartFilled.svg';
+import More from './assets/More.svg';
+import Seen from './assets/Seen.svg';
+
 interface CardItem {
   id: number;
   name: string;
@@ -32,7 +38,9 @@ const MainPage = () => {
   const imageHeightPercent = useRef(new Animated.Value(100)).current;
 
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
+  const [likedCards, setLikedCards] = useState<number[]>([]);
 
   const [cards, setCards] = useState<CardItem[]>([
     { 
@@ -58,7 +66,7 @@ const MainPage = () => {
   const sizes = ['XS', 'S', 'M', 'L', 'XL'];
 
   // Swipe threshold (how far the card needs to be dragged to trigger a swipe)
-  const SWIPE_THRESHOLD = screenHeight * 0.2; // 20% of screen height
+  const SWIPE_THRESHOLD = screenHeight * 0.1; // 10% of screen height
 
   const panResponder = useRef(
     PanResponder.create({
@@ -100,6 +108,8 @@ const MainPage = () => {
   }, [fadeAnim]);
 
   const swipeCard = (direction: 'up' | 'right' = 'up') => {
+    if (isAnimating) return;
+    setIsAnimating(true);
     // Animate card moving off screen
     Animated.timing(pan, {
       toValue: { 
@@ -119,15 +129,32 @@ const MainPage = () => {
       pan.setValue({ x: 0, y: screenHeight });
       
       // Animate card back to original position
-      Animated.spring(pan, {
-        toValue: { x: 0, y: 0 },
-        friction: 6,
-        tension: 40,
-        useNativeDriver: false
-      }).start();
+            Animated.spring(pan, {
+              toValue: { x: 0, y: 0 },
+              friction: 6,
+              tension: 40,
+              useNativeDriver: false
+            }).start(() => {
+              // Reset animation state
+              setIsAnimating(false);
+            });
     });
 
     fadeOutIn();
+  };
+
+  const handleLikePress = () => {
+    const currentCardId = cards[currentCardIndex].id;
+    
+    // Animate heart
+    //animateHeart();
+    
+    // Toggle like status
+    setLikedCards(prevLiked => 
+      prevLiked.includes(currentCardId)
+        ? prevLiked.filter(id => id !== currentCardId)
+        : [...prevLiked, currentCardId]
+    );
   };
 
   const handleCartPress = () => {
@@ -183,103 +210,101 @@ const MainPage = () => {
     });
   };
 
-  const renderCard = useCallback((card: CardItem) => (
-    <Animated.View 
-      {...panResponder.panHandlers}
-      style={[
-        styles.whiteBox, 
-        { 
-          transform: [
-            { translateX: pan.x },
-            { translateY: pan.y }
-          ] 
-        }
-      ]}
-    >
-      <View style={styles.imageHolder}>
+  const renderCard = useCallback((card: CardItem) => {
+      const isLiked = likedCards.includes(card.id);
+  
+      return (
         <Animated.View 
-        style={
-          { 
-            width: '100%',
-            height: imageHeightPercent.interpolate({
-              inputRange: [90, 100],
-              outputRange: ['90%', '100%']
-            }) 
-          }
-          }
+          {...panResponder.panHandlers}
+          style={[
+            styles.whiteBox, 
+            { 
+              transform: [
+                { translateX: pan.x },
+                { translateY: pan.y }
+              ] 
+            }
+          ]}
         >
-        <Image 
-          source={card.image}
-          style={styles.image}
-          resizeMode="contain"
-        />
-        </Animated.View>  
-        <Pressable style={styles.dotsButton} onPress={() => console.log("pressed")}>
-          <Image 
-            source={require('./assets/More.png')}
-            style={styles.dotsImage}
-          />
-        </Pressable>
-      </View>
-
-      {/* Buttons Container */}
-      <Animated.View 
-        style={[
-          styles.buttonContainer, 
-          { 
-            transform: [{ translateX: buttonsTranslateX }],
-            opacity: showSizeSelection ? 0 : 1
-          }
-        ]}
-      >
-        <Pressable style={styles.button} onPress={handleCartPress}>
-          <Image 
-            source={require('./assets/Cart2.png')}
-            style={styles.icon}
-          />
-        </Pressable>
-        <Pressable 
-          style={styles.button} 
-          onPress={() => swipeCard('up')}
-        >
-          <Image 
-            source={require('./assets/Seen.png')}
-            style={styles.icon}
-          />
-        </Pressable>
-        <Pressable 
-          style={styles.button} 
-          onPress={() => swipeCard('right')}
-        >
-          <Image 
-            source={require('./assets/Heart2.png')}
-            style={styles.icon}
-          />
-        </Pressable>
-      </Animated.View>
-
-      {/* Size Selection Circles */}
-      <Animated.View 
-        style={[
-          styles.sizeContainer, 
-          { 
-            transform: [{ translateX: sizesTranslateX }],
-            opacity: showSizeSelection ? 1 : 0
-          }
-        ]}
-      >
-        {sizes.map((size) => (
-          <Pressable 
-            key={size} 
-            style={styles.sizeCircle}
-            onPress={() => handleSizeSelect(size)}
+          <View style={styles.imageHolder}>
+            <Animated.View 
+            style={
+              { 
+                width: '100%',
+                height: imageHeightPercent.interpolate({
+                  inputRange: [90, 100],
+                  outputRange: ['90%', '100%']
+                }) 
+              }
+              }
+            >
+            <Image 
+              key={card.id} // Add key to prevent image flickering
+              source={card.image}
+              style={styles.image}
+              resizeMode="contain"
+            />
+            </Animated.View>  
+            <Pressable style={styles.dotsButton} onPress={() => console.log("pressed")}>
+              <More width={23} height={33}/>
+            </Pressable>
+          </View>
+  
+          {/* Buttons Container */}
+          <Animated.View 
+            style={[
+              styles.buttonContainer, 
+              { 
+                transform: [{ translateX: buttonsTranslateX }],
+                opacity: showSizeSelection ? 0 : 1
+              }
+            ]}
           >
-            <Text style={styles.sizeText}>{size}</Text>
-          </Pressable>
-        ))}
-      </Animated.View>
-    </Animated.View>
-  ), [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan]);
+            <Pressable style={styles.button} onPress={handleCartPress}>
+              <Cart2 width={33} height={33} />
+            </Pressable>
+            <Pressable 
+              style={styles.button} 
+              onPress={() => swipeCard('up')}
+            >
+              <Seen width={33} height={33} />
+            </Pressable>
+            <Pressable 
+              style={styles.button} 
+              onPress={handleLikePress}
+            >
+              {isLiked ? (
+                <HeartFilled width={33} height={33} />
+              ) : (
+                <Heart2 width={33} height={33} />
+              )
+              }
+            </Pressable>
+          </Animated.View>
+  
+          {/* Size Selection Circles */}
+          <Animated.View 
+            style={[
+              styles.sizeContainer, 
+              { 
+                transform: [{ translateX: sizesTranslateX }],
+                opacity: showSizeSelection ? 1 : 0
+              }
+            ]}
+          >
+            {sizes.map((size) => (
+              <Pressable 
+                key={size} 
+                style={styles.sizeCircle}
+                onPress={() => handleSizeSelect(size)}
+              >
+                <Text style={styles.sizeText}>{size}</Text>
+              </Pressable>
+            ))}
+          </Animated.View>
+        </Animated.View>
+      );
+    }, [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan, isAnimating, likedCards]);
 
   return (
     <View style={styles.container}>
@@ -378,7 +403,7 @@ const styles = StyleSheet.create({
   dotsButton: {
     position: 'absolute',
     top: -15, // Adjust as needed
-    right: -15, // Adjust as needed
+    right: -22.5, // Adjust as needed
     padding: 5,
     //backgroundColor: 'rgba(255, 255, 255, 0.7)', // Semi-transparent background
     borderRadius: 5,

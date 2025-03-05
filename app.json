@@ -13,16 +13,32 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.danyvsthewrld.PolkaMobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./app/assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.danyvsthewrld.PolkaMobile"
     },
     "web": {
       "favicon": "./app/assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "74d77e39-6b44-4eab-ba2a-5a9a5afb5968"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/74d77e39-6b44-4eab-ba2a-5a9a5afb5968"
     }
   }
 }

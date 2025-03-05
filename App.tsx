@@ -4,9 +4,15 @@ import * as Font from 'expo-font';
 import { Platform, StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MainPage from './app/MainPage';
-import Cart from './app/Cart';
+import CartPage from './app/Cart';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
+import Search from './app/assets/Search.svg'; // Adjust the path as needed
+import Logo from './app/assets/Logo.svg'; // Adjust the path as needed
+import Heart from './app/assets/Heart.svg'; // Adjust the path as needed
+import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
 
 interface NavButtonProps {
   onPress: () => void;
@@ -77,43 +83,28 @@ export default function App() {
         <SafeAreaView style={styles.container}>
           <View style={{height: Platform.OS == 'android' ? '88%' : '92%'}}>
             {currentScreen === 'Home' && <MainPage />}
-            {currentScreen === 'Cart' && <Cart />}
+            {currentScreen === 'Cart' && <CartPage />}
           </View>
   
           <View style={styles.navbar}>
             <NavButton onPress={() => handleNavPress('Cart')}>
-              <Image 
-                source={require('./app/assets/Cart.png')}
-                style={styles.icon}
-              />
+              <Cart width={32.75} height={32} />
             </NavButton>
 
             <NavButton onPress={() => handleNavPress('Search')}>
-              <Image 
-                source={require('./app/assets/Search.png')}
-                style={styles.icon}
-              />
+              <Search width={24.75} height={24.75} />
             </NavButton>
 
             <NavButton onPress={() => handleNavPress('Home')}>
-              <Image 
-                source={require('./app/assets/Logo.png')}
-                style={styles.icon}
-              />
+              <Logo width={21} height={28}/>
             </NavButton>
 
             <NavButton onPress={() => handleNavPress('Favorites')}>
-              <Image 
-                source={require('./app/assets/Heart.png')}
-                style={styles.icon}
-              />
+              <Heart width={28.74} height={25.07} />
             </NavButton>
 
             <NavButton onPress={() => handleNavPress('Settings')}>
-              <Image 
-                source={require('./app/assets/Settings.png')}
-                style={styles.icon}
-              />
+              <Settings width={30.25} height={30.25} />
             </NavButton>
           </View>
 
@@ -143,6 +134,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
+    paddingBottom: 15,
   },
   navItem: {
     alignItems: 'center',
@@ -152,9 +144,7 @@ const styles = StyleSheet.create({
     //width: 48,
   },
   icon: {
-    flex: 0.3,
-    //width: 28,
-    //height: 28,
-    resizeMode: 'contain', // Ensure the image scales properly
+    width: 20,
+    height: 20,
   },
 });
