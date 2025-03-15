@@ -44,6 +44,7 @@ interface SelectedFilters {
 
 const Search = ({ navigation }: SearchProps) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const [activeFilter, setActiveFilter] = useState<keyof FilterOptions | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<SelectedFilters>({
     category: 'Категория',
@@ -111,6 +112,10 @@ const Search = ({ navigation }: SearchProps) => {
     setSearchQuery(text);
   };
 
+  const handleSearchFocus = () => {
+    setIsSearchActive(true);
+  };
+
   const handleFilterPress = (filterType: keyof FilterOptions) => {
     setActiveFilter(activeFilter === filterType ? null : filterType);
   };
@@ -168,7 +173,10 @@ const Search = ({ navigation }: SearchProps) => {
     <View style={styles.container}>
       <Animated.View 
         entering={FadeInDown.duration(400).delay(200)}
-        style={styles.searchContainer}
+        style={[
+          styles.searchContainer,
+          !isSearchActive && styles.searchContainerInitial
+        ]}
       >
         <TextInput
           style={styles.searchInput}
@@ -176,9 +184,11 @@ const Search = ({ navigation }: SearchProps) => {
           placeholderTextColor="rgba(0,0,0,0.6)"
           value={searchQuery}
           onChangeText={handleSearch}
+          onFocus={handleSearchFocus}
         />
       </Animated.View>
-      <Animated.View 
+      {isSearchActive && (
+        <Animated.View 
           entering={FadeInDown.duration(400).delay(250)}
           style={styles.filtersContainer}
         >
@@ -229,11 +239,14 @@ const Search = ({ navigation }: SearchProps) => {
             </Animated.View>
           )}
         </Animated.View>
+      )}
       <Animated.View 
         entering={FadeIn.duration(500).delay(300)}
-        style={styles.roundedBox}
+        style={[
+          styles.roundedBox,
+          !isSearchActive && styles.roundedBoxInitial
+        ]}
       >
-        
         <Animated.View 
           entering={FadeInDown.duration(400).delay(300)}
           style={{flex: 1}}
@@ -242,7 +255,10 @@ const Search = ({ navigation }: SearchProps) => {
             <Text style={styles.noResultsText}>No results found</Text>
           ) : (
             <FlatList
-              style={styles.resultsContainer}
+              style={[
+                styles.resultsContainer,
+                !isSearchActive && styles.resultsContainerInitial
+              ]}
               data={filteredResults}
               renderItem={renderItem}
               keyExtractor={item => item.id.toString()}
@@ -253,6 +269,14 @@ const Search = ({ navigation }: SearchProps) => {
             />
           )}
         </Animated.View>
+        {!isSearchActive && (
+          <Animated.Text 
+            entering={FadeIn.duration(500)}
+            style={styles.popularItemsText}
+          >
+            ПОПУЛЯРНОЕ
+          </Animated.Text>
+        )}
       </Animated.View>
     </View>
   );
@@ -373,7 +397,13 @@ const styles = StyleSheet.create({
   resultsContainer: {
     flex: 1,
     padding: 11,
-    borderRadius: 41
+    borderRadius: 41,
+  },
+  resultsContainerInitial: {
+    borderTopLeftRadius: 41,
+    borderTopRightRadius: 41,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   listContent: {
     paddingBottom: 20,
@@ -429,7 +459,7 @@ const styles = StyleSheet.create({
     //backgroundColor: 'rgba(242, 236, 231, 0.8)',
     borderRadius: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 4, height: 0 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
@@ -446,6 +476,20 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     marginTop: 20,
+  },
+  searchContainerInitial: {
+    marginBottom: '5%',
+  },
+  roundedBoxInitial: {
+    height: '82%',
+  },
+  popularItemsText: {
+    fontFamily: 'Igra Sans',
+    fontSize: 38,
+    color: '#73706D',
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 10,
   },
 });
 

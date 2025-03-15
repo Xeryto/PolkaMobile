@@ -8,6 +8,7 @@ import CartPage from './app/Cart';
 import SearchPage from './app/Search';
 import FavoritesPage from './app/Favorites';
 import SettingsPage from './app/Settings';
+import LoadingScreen from './app/LoadingScreen';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -35,6 +36,7 @@ const loadFonts = async () => {
 
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [showLoading, setShowLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState('Home');
   const fadeAnim = useState(new Animated.Value(1))[0];
   const slideAnim = useState(new Animated.Value(0))[0];
@@ -75,6 +77,10 @@ export default function App() {
 
     loadResources();
   }, []);
+
+  const handleLoadingFinish = () => {
+    setShowLoading(false);
+  };
 
   if (!fontsLoaded) {
     return null; // Return null while fonts are loading
@@ -152,6 +158,7 @@ export default function App() {
         end={{ x: 1, y: 0.8 }}
       >
         <SafeAreaView style={styles.container}>
+          {/* Always render the main app */}
           <Animated.View 
             style={[
               {height: Platform.OS == 'android' ? '88%' : '92%'}, 
@@ -164,7 +171,7 @@ export default function App() {
             {currentScreen === 'Favorites' && <FavoritesPage navigation={navigation} />}
             {currentScreen === 'Settings' && <SettingsPage navigation={navigation} />}
           </Animated.View>
-  
+
           <View style={styles.navbar}>
             <NavButton 
               onPress={() => handleNavPress('Cart')} 
@@ -201,6 +208,11 @@ export default function App() {
               <Settings width={30.25} height={30.25} />
             </NavButton>
           </View>
+          
+          {/* Conditionally render the loading screen on top */}
+          {showLoading && (
+            <LoadingScreen onFinish={handleLoadingFinish} />
+          )}
         </SafeAreaView>
       </LinearGradient>
     </GestureHandlerRootView>
