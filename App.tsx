@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import * as Font from 'expo-font';
 //import { StatusBar } from 'expo-status-bar';
-import { Platform, StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Image, Dimensions } from 'react-native';
+import { Platform, StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MainPage from './app/MainPage';
 import CartPage from './app/Cart';
+import SearchPage from './app/Search';
+import FavoritesPage from './app/Favorites';
+import SettingsPage from './app/Settings';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -17,6 +20,7 @@ import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
 interface NavButtonProps {
   onPress: () => void;
   children: React.ReactNode;
+  isActive?: boolean;
 }
 
 // Prevent the splash screen from auto-hiding
@@ -32,6 +36,29 @@ const loadFonts = async () => {
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('Home');
+  const fadeAnim = useState(new Animated.Value(1))[0];
+  const slideAnim = useState(new Animated.Value(0))[0];
+  const glowAnim = useState(new Animated.Value(1))[0]; // Animation for the glow effect
+
+  // Start the glow animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1.05, // Very subtle scale increase
+          duration: 1500,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        })
+      ])
+    ).start();
+  }, []);
 
   useEffect(() => {
     const loadResources = async () => {
@@ -54,20 +81,64 @@ export default function App() {
   }
 
   const handleNavPress = (screen: string) => {
-    setCurrentScreen(screen);
+    if (screen === currentScreen) return;
+    
+    // Fade out current screen
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true
+    }).start(() => {
+      // Change screen
+      setCurrentScreen(screen);
+      
+      // Reset slide position
+      slideAnim.setValue(50);
+      
+      // Slide and fade in new screen
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true
+        })
+      ]).start();
+    });
   };
 
-  const NavButton = ({ onPress, children }: NavButtonProps) => (
+  // Create simple navigation object
+  const navigation = {
+    navigate: (screen: string) => handleNavPress(screen),
+    goBack: () => handleNavPress('Home')
+  };
+
+  const NavButton = ({ onPress, children, isActive }: NavButtonProps) => (
     <Pressable 
-      style={styles.navItem} 
+      style={[styles.navItem, isActive ? styles.activeNavItem : null]} 
       onPress={onPress}
     >
-      {children}
+      {isActive ? (
+        <Animated.View 
+          style={[
+            styles.activeIconContainer,
+            { transform: [{ scale: glowAnim }] }
+          ]}
+        >
+          {children}
+        </Animated.View>
+      ) : (
+        children
+      )}
     </Pressable>
   );
 
   return (
-    <GestureHandlerRootView>
+    <GestureHandlerRootView style={{flex: 1}}>
       <LinearGradient
         colors={[
           '#FAE9CF',
@@ -81,36 +152,58 @@ export default function App() {
         end={{ x: 1, y: 0.8 }}
       >
         <SafeAreaView style={styles.container}>
-          <View style={{height: Platform.OS == 'android' ? '88%' : '92%'}}>
-            {currentScreen === 'Home' && <MainPage />}
-            {currentScreen === 'Cart' && <CartPage />}
-          </View>
+          <Animated.View 
+            style={[
+              {height: Platform.OS == 'android' ? '88%' : '92%'}, 
+              {opacity: fadeAnim, transform: [{translateY: slideAnim}]}
+            ]}
+          >
+            {currentScreen === 'Home' && <MainPage navigation={navigation} />}
+            {currentScreen === 'Cart' && <CartPage navigation={navigation} />}
+            {currentScreen === 'Search' && <SearchPage navigation={navigation} />}
+            {currentScreen === 'Favorites' && <FavoritesPage navigation={navigation} />}
+            {currentScreen === 'Settings' && <SettingsPage navigation={navigation} />}
+          </Animated.View>
   
           <View style={styles.navbar}>
-            <NavButton onPress={() => handleNavPress('Cart')}>
+            <NavButton 
+              onPress={() => handleNavPress('Cart')} 
+              isActive={currentScreen === 'Cart'}
+            >
               <Cart width={32.75} height={32} />
             </NavButton>
 
-            <NavButton onPress={() => handleNavPress('Search')}>
+            <NavButton 
+              onPress={() => handleNavPress('Search')} 
+              isActive={currentScreen === 'Search'}
+            >
               <Search width={24.75} height={24.75} />
             </NavButton>
 
-            <NavButton onPress={() => handleNavPress('Home')}>
+            <NavButton 
+              onPress={() => handleNavPress('Home')} 
+              isActive={currentScreen === 'Home'}
+            >
               <Logo width={21} height={28}/>
             </NavButton>
 
-            <NavButton onPress={() => handleNavPress('Favorites')}>
+            <NavButton 
+              onPress={() => handleNavPress('Favorites')} 
+              isActive={currentScreen === 'Favorites'}
+            >
               <Heart width={28.74} height={25.07} />
             </NavButton>
 
-            <NavButton onPress={() => handleNavPress('Settings')}>
+            <NavButton 
+              onPress={() => handleNavPress('Settings')} 
+              isActive={currentScreen === 'Settings'}
+            >
               <Settings width={30.25} height={30.25} />
             </NavButton>
           </View>
-
         </SafeAreaView>
       </LinearGradient>
-      </GestureHandlerRootView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -118,6 +211,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: 'transparent',
   },
   gradient: {
     flex: 1,
@@ -142,6 +236,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     //height: 48,
     //width: 48,
+  },
+  activeNavItem: {
+    // Slight visual indicator for active nav item
+    opacity: 1,
+    //transform: [{scale: 1.05}] // Reduced from 1.1 for subtlety
+  },
+  activeIconContainer: {
+    // Subtle dark shadow for active icon
+    shadowColor: 'rgba(0, 0, 0, 1)', // Semi-transparent black
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5, // Reduced for subtlety
+    shadowRadius: 4, // Tighter shadow
+    elevation: 3, // Lower elevation
+    backgroundColor: 'transparent',
+    borderRadius: 18,
+    padding: 0, // Remove padding to improve quality
   },
   icon: {
     width: 20,

@@ -1,339 +1,74 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Image, 
-  Text, 
-  Pressable, 
-  Dimensions, 
-  Platform, 
-  Animated, 
-  PanResponder,
-  Easing 
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import Cart2 from './assets/Cart2.svg';
-import Heart2 from './assets/Heart2.svg';
-import HeartFilled from './assets/HeartFilled.svg';
-import More from './assets/More.svg';
-import Seen from './assets/Seen.svg';
+// Define a simpler navigation type that our custom navigation can satisfy
+interface SimpleNavigation {
+  navigate: (screen: string) => void;
+  goBack: () => void;
+}
 
-interface CardItem {
+interface CartProps {
+  navigation: SimpleNavigation;
+}
+
+interface CartItem {
   id: number;
   name: string;
   price: string;
+  size: string;
   image: any;
+  quantity: number;
 }
 
-const Cart = () => {
-  const screenHeight = Dimensions.get('window').height;
-  const screenWidth = Dimensions.get('window').width;
-
-  // Animated values for various interactions
-  const pan = useRef(new Animated.ValueXY()).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const buttonsTranslateX = useRef(new Animated.Value(0)).current;
-  const sizesTranslateX = useRef(new Animated.Value(-screenWidth)).current;
-  const imageHeightPercent = useRef(new Animated.Value(100)).current;
-  
-  // Heart animation value
-  const heartScale = useRef(new Animated.Value(1)).current;
-
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [showSizeSelection, setShowSizeSelection] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [likedCards, setLikedCards] = useState<number[]>([]);
-
-  const [cards, setCards] = useState<CardItem[]>([
+const Cart = ({ navigation }: CartProps) => {
+  const [cartItems, setCartItems] = React.useState<CartItem[]>([
     { 
       id: 1, 
       name: 'NAME', 
       price: '25 000 р', 
-      image: require('./assets/Vision.png') 
+      size: 'M',
+      image: require('./assets/Vision.png'),
+      quantity: 1
     },
     { 
       id: 2, 
       name: 'ANOTHER NAME', 
       price: '30 000 р', 
-      image: require('./assets/Vision2.png') 
-    },
-    { 
-      id: 3, 
-      name: 'NAME', 
-      price: '25 000 р', 
-      image: require('./assets/Vision.png') 
+      size: 'L',
+      image: require('./assets/Vision2.png'),
+      quantity: 1
     },
   ]);
 
-  const sizes = ['XS', 'S', 'M', 'L', 'XL'];
-
-  // Swipe threshold (how far the card needs to be dragged to trigger a swipe)
-  const SWIPE_THRESHOLD = screenHeight * 0.2; // 20% of screen height
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: () => !isAnimating,
-      onPanResponderMove: Animated.event(
-        [null, { dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: (e, gestureState) => {
-        // Prevent multiple swipes during animation
-        if (isAnimating) return;
-
-        // Check if drag exceeds threshold
-        if (gestureState.dy < -SWIPE_THRESHOLD) {
-          // Swipe up
-          swipeCard('up');
-        } else {
-          // Return card to original position
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            friction: 5,
-            useNativeDriver: false
-          }).start();
-        }
-      }
-    })
-  ).current;
-
-  const animateHeart = () => {
-    Animated.sequence([
-      Animated.timing(heartScale, {
-        toValue: 1.5, // Scale up
-        duration: 100,
-        useNativeDriver: true,
-        easing: Easing.elastic(3)
-      }),
-      Animated.timing(heartScale, {
-        toValue: 1, // Return to original size
-        duration: 300,
-        useNativeDriver: true,
-        easing: Easing.bounce
-      })
-    ]).start();
-  };
-
-  const fadeOutIn = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true
-      })
-    ]).start();
-  }, [fadeAnim]);
-
-  const swipeCard = (direction: 'up' = 'up') => {
-    // Prevent multiple swipes
-    if (isAnimating) return;
-    setIsAnimating(true);
-
-    // Animate card moving off screen
-    Animated.timing(pan, {
-      toValue: { 
-        x: 0, 
-        y: -screenHeight 
-      },
-      duration: 300,
-      easing: Easing.ease,
-      useNativeDriver: false
-    }).start(() => {
-      // Move to next card or reset if at the end
-      setCurrentCardIndex(prevIndex => 
-        prevIndex + 1 < cards.length ? prevIndex + 1 : 0
-      );
-      
-      // Reset pan position
-      pan.setValue({ x: 0, y: screenHeight });
-      
-      // Animate card back to original position
-      Animated.spring(pan, {
-        toValue: { x: 0, y: 0 },
-        friction: 6,
-        tension: 40,
-        useNativeDriver: false
-      }).start(() => {
-        // Reset animation state
-        setIsAnimating(false);
-      });
-    });
-
-    fadeOutIn();
-  };
-
-  const handleLikePress = () => {
-    const currentCardId = cards[currentCardIndex].id;
-    
-    // Animate heart
-    animateHeart();
-    
-    // Toggle like status
-    setLikedCards(prevLiked => 
-      prevLiked.includes(currentCardId)
-        ? prevLiked.filter(id => id !== currentCardId)
-        : [...prevLiked, currentCardId]
+  const updateQuantity = (id: number, change: number) => {
+    setCartItems(prevItems => 
+      prevItems.map(item => 
+        item.id === id 
+          ? { ...item, quantity: Math.max(1, item.quantity + change) } 
+          : item
+      )
     );
   };
 
-  const handleCartPress = () => {
-    // Animate buttons out and size selection in
-    Animated.parallel([
-      Animated.timing(buttonsTranslateX, {
-        toValue: screenWidth,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true
-      }),
-      Animated.timing(sizesTranslateX, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true
-      }),
-      Animated.timing(imageHeightPercent, {
-        toValue: 90, // Shrink to 75% height
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: false // Must be false for percentage changes
-      })
-    ]).start(() => {
-      setShowSizeSelection(true);
-    });
+  const removeItem = (id: number) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== id));
   };
 
-  const handleSizeSelect = (size: string) => {
-    // Reset animations and hide size selection
-    Animated.parallel([
-      Animated.timing(buttonsTranslateX, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true
-      }),
-      Animated.timing(sizesTranslateX, {
-        toValue: -screenWidth,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true
-      }),
-      Animated.timing(imageHeightPercent, {
-        toValue: 100, // Return to original height
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: false
-      })
-    ]).start(() => {
-      setShowSizeSelection(false);
-      console.log(`Selected size: ${size}`);
-    });
+  const calculateTotal = () => {
+    return cartItems.reduce((total, item) => {
+      const price = parseInt(item.price.replace(/\D/g, ''));
+      return total + (price * item.quantity);
+    }, 0).toLocaleString() + ' р';
   };
-
-  const renderCard = useCallback((card: CardItem) => {
-    const isLiked = likedCards.includes(card.id);
-
-    return (
-      <Animated.View 
-        {...panResponder.panHandlers}
-        style={[
-          styles.whiteBox, 
-          { 
-            transform: [
-              { translateX: pan.x },
-              { translateY: pan.y }
-            ] 
-          }
-        ]}
-      >
-        <View style={styles.imageHolder}>
-          <Animated.View 
-          style={
-            { 
-              width: '100%',
-              height: imageHeightPercent.interpolate({
-                inputRange: [90, 100],
-                outputRange: ['90%', '100%']
-              }) 
-            }
-            }
-          >
-          <Image 
-            key={card.id} // Add key to prevent image flickering
-            source={card.image}
-            style={styles.image}
-            resizeMode="contain"
-          />
-          </Animated.View>  
-          <Pressable style={styles.dotsButton} onPress={() => console.log("pressed")}>
-            <More width={23} height={33} />
-          </Pressable>
-        </View>
-
-        {/* Buttons Container */}
-        <Animated.View 
-          style={[
-            styles.buttonContainer, 
-            { 
-              transform: [{ translateX: buttonsTranslateX }],
-              opacity: showSizeSelection ? 0 : 1
-            }
-          ]}
-        >
-          <Pressable style={styles.button} onPress={handleCartPress}>
-            <Cart2 width={33} height={33} />
-          </Pressable>
-          <Pressable 
-            style={styles.button} 
-            onPress={() => swipeCard('up')}
-          >
-            <Seen width={33} height={33} />
-          </Pressable>
-          <Pressable 
-              style={styles.button} 
-              onPress={handleLikePress}
-            >
-              {isLiked ? (
-                <HeartFilled width={33} height={33} />
-              ) : (
-                <Heart2 width={33} height={33} />
-              )
-              }
-            </Pressable>
-        </Animated.View>
-
-        {/* Size Selection Circles */}
-        <Animated.View 
-          style={[
-            styles.sizeContainer, 
-            { 
-              transform: [{ translateX: sizesTranslateX }],
-              opacity: showSizeSelection ? 1 : 0
-            }
-          ]}
-        >
-          {sizes.map((size) => (
-            <Pressable 
-              key={size} 
-              style={styles.sizeCircle}
-              onPress={() => handleSizeSelect(size)}
-            >
-              <Text style={styles.sizeText}>{size}</Text>
-            </Pressable>
-          ))}
-        </Animated.View>
-      </Animated.View>
-    );
-  }, [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan, isAnimating, likedCards, heartScale]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.roundedBox}>
+      <Animated.View 
+        entering={FadeIn.duration(500)}
+        style={styles.roundedBox}
+      >
         <LinearGradient
           colors={["rgba(205, 166, 122, 0.4)", "rgba(205, 166, 122, 0)"]}
           start={{ x: 0, y: 1 }}
@@ -341,18 +76,76 @@ const Cart = () => {
           style={styles.gradientBackground}
         />
         
-        {/* Render current card */}
-        {renderCard(cards[currentCardIndex])}
-
-        <Animated.View style={[styles.text, { opacity: fadeAnim }]}>
-          <Text style={styles.name}>
-            {cards[currentCardIndex]?.name || 'No Name'}
-          </Text>
-          <Text style={styles.price}>
-            {cards[currentCardIndex]?.price || '0 р'}
-          </Text>
-        </Animated.View>
-      </View>
+        <Text style={styles.title}>Your Cart</Text>
+        
+        {cartItems.length === 0 ? (
+          <Animated.View 
+            entering={FadeInDown.duration(500).delay(300)}
+            style={styles.emptyCartContainer}
+          >
+            <Text style={styles.emptyCartText}>Your cart is empty</Text>
+            <Pressable 
+              style={styles.shopButton}
+              onPress={() => navigation.navigate('MainPage')}
+            >
+              <Text style={styles.shopButtonText}>Continue Shopping</Text>
+            </Pressable>
+          </Animated.View>
+        ) : (
+          <>
+            <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
+              {cartItems.map((item, index) => (
+                <Animated.View 
+                  key={item.id}
+                  entering={FadeInDown.duration(500).delay(200 + index * 100)}
+                  style={styles.cartItem}
+                >
+                  <Image source={item.image} style={styles.itemImage} />
+                  <View style={styles.itemDetails}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemPrice}>{item.price}</Text>
+                    <Text style={styles.itemSize}>Size: {item.size}</Text>
+                    <View style={styles.quantityContainer}>
+                      <Pressable 
+                        style={styles.quantityButton}
+                        onPress={() => updateQuantity(item.id, -1)}
+                      >
+                        <Text style={styles.quantityButtonText}>-</Text>
+                      </Pressable>
+                      <Text style={styles.quantityText}>{item.quantity}</Text>
+                      <Pressable 
+                        style={styles.quantityButton}
+                        onPress={() => updateQuantity(item.id, 1)}
+                      >
+                        <Text style={styles.quantityButtonText}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Pressable 
+                    style={styles.removeButton}
+                    onPress={() => removeItem(item.id)}
+                  >
+                    <Text style={styles.removeButtonText}>×</Text>
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </ScrollView>
+            
+            <Animated.View 
+              entering={FadeInDown.duration(500).delay(500)}
+              style={styles.checkoutContainer}
+            >
+              <View style={styles.totalContainer}>
+                <Text style={styles.totalText}>Total:</Text>
+                <Text style={styles.totalAmount}>{calculateTotal()}</Text>
+              </View>
+              <Pressable style={styles.checkoutButton}>
+                <Text style={styles.checkoutButtonText}>Checkout</Text>
+              </Pressable>
+            </Animated.View>
+          </>
+        )}
+      </Animated.View>
     </View>
   );
 };
@@ -373,109 +166,158 @@ const styles = StyleSheet.create({
   },
   roundedBox: {
     width: '88%',
-    height: '90%',
+    height: '95%',
     borderRadius: 41,
-    backgroundColor: 'rgba(205, 166, 122, 0)', 
+    backgroundColor: 'rgba(205, 166, 122, 0)',
     position: 'relative',
     borderWidth: 3,
     borderColor: 'rgba(205, 166, 122, 0.4)',
+    padding: 20,
   },
-  whiteBox: {
-    width: '102%',
-    height: '82%',
-    borderRadius: 41,
-    backgroundColor: '#F2ECE7', 
-    position: 'absolute',
-    top: -3,
-    left: -3,
-    shadowColor: '#000', 
-    shadowOffset: {
-      width: 0.25,
-      height: 4, 
-    },
-    shadowOpacity: 0.5, 
-    shadowRadius: 4, 
-    elevation: 10, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-  },
-  imageHolder: {
-    width: '75%',
-    height: '80%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5, 
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain'
-  },
-  dotsButton: {
-    position: 'absolute',
-    top: -15, 
-    right: -15, 
-    padding: 5,
-    borderRadius: 5,
-  },
-  dotsImage: {
-    width: 23, 
-    height: 33, 
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '110%',
-    marginBottom: -40,
-  },
-  button: {
-    padding: 5,
-  },
-  icon: {
-    width: 33,
-    height: 33,
-    resizeMode: 'contain', 
-  },
-  text: {
-    top: Platform.OS == 'android' ? '82.5%' : '85%',
-    width: "100%",
-    paddingLeft: 22
-  },
-  name: {
-    fontFamily: 'IgraSans', 
+  title: {
+    fontFamily: 'IgraSans',
     fontSize: 38,
-    textAlign: 'left',
     color: 'white',
+    marginBottom: 20,
+    textAlign: 'center',
   },
-  price: {
-    fontFamily: 'REM', 
-    fontSize: 16,
-    textAlign: 'left',
-    color: 'white',
+  itemsContainer: {
+    flex: 1,
+    marginBottom: 20,
   },
-  sizeContainer: {
+  cartItem: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: -20,
-  },
-  sizeCircle: {
-    width: 41,
-    height: 41,
-    borderRadius: 20.5,
-    backgroundColor: '#E2CCB2',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  sizeText: {
+  itemImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    marginRight: 15,
+  },
+  itemDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  itemName: {
+    fontFamily: 'IgraSans',
+    fontSize: 18,
+    marginBottom: 5,
+  },
+  itemPrice: {
+    fontFamily: 'REM',
+    fontSize: 16,
+    color: '#6A462F',
+    marginBottom: 5,
+  },
+  itemSize: {
+    fontFamily: 'REM',
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 10,
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  quantityButton: {
+    width: 30,
+    height: 30,
+    backgroundColor: '#E2CCB2',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityButtonText: {
+    fontSize: 18,
     color: 'white',
     fontWeight: 'bold',
+  },
+  quantityText: {
+    marginHorizontal: 15,
     fontSize: 16,
+    fontFamily: 'REM',
+  },
+  removeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  removeButtonText: {
+    fontSize: 20,
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+  },
+  checkoutContainer: {
+    backgroundColor: '#F2ECE7',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  totalContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  totalText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+  },
+  totalAmount: {
+    fontFamily: 'REM',
+    fontSize: 20,
+    color: '#6A462F',
+    fontWeight: 'bold',
+  },
+  checkoutButton: {
+    backgroundColor: '#CDA67A',
+    borderRadius: 15,
+    padding: 15,
+    alignItems: 'center',
+  },
+  checkoutButtonText: {
+    color: 'white',
+    fontFamily: 'IgraSans',
+    fontSize: 18,
+  },
+  emptyCartContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyCartText: {
+    fontFamily: 'REM',
+    fontSize: 18,
+    color: 'white',
+    marginBottom: 20,
+  },
+  shopButton: {
+    backgroundColor: '#CDA67A',
+    borderRadius: 15,
+    padding: 15,
+    alignItems: 'center',
+    width: '80%',
+  },
+  shopButtonText: {
+    color: 'white',
+    fontFamily: 'IgraSans',
+    fontSize: 18,
   },
 });
 

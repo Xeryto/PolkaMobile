@@ -19,6 +19,16 @@ import HeartFilled from './assets/HeartFilled.svg';
 import More from './assets/More.svg';
 import Seen from './assets/Seen.svg';
 
+// Define a simpler navigation type that our custom navigation can satisfy
+interface SimpleNavigation {
+  navigate: (screen: string) => void;
+  goBack: () => void;
+}
+
+interface MainPageProps {
+  navigation: SimpleNavigation;
+}
+
 interface CardItem {
   id: number;
   name: string;
@@ -26,7 +36,7 @@ interface CardItem {
   image: any;
 }
 
-const MainPage = () => {
+const MainPage = ({ navigation }: MainPageProps) => {
   const screenHeight = Dimensions.get('window').height;
   const screenWidth = Dimensions.get('window').width;
 
