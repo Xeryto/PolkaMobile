@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Font from 'expo-font';
 //import { StatusBar } from 'expo-status-bar';
 import { Platform, StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing } from 'react-native';
@@ -17,6 +17,17 @@ import Search from './app/assets/Search.svg'; // Adjust the path as needed
 import Logo from './app/assets/Logo.svg'; // Adjust the path as needed
 import Heart from './app/assets/Heart.svg'; // Adjust the path as needed
 import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
+
+// Define types for improved navigation
+type ScreenName = 'Home' | 'Cart' | 'Search' | 'Favorites' | 'Settings';
+type NavigationListener = () => void;
+
+interface SimpleNavigation {
+  navigate: (screen: string, params?: any) => void;
+  goBack: () => void;
+  addListener: (event: string, callback: NavigationListener) => () => void;
+  setParams?: (params: any) => void;
+}
 
 interface NavButtonProps {
   onPress: () => void;
@@ -37,10 +48,28 @@ const loadFonts = async () => {
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [showLoading, setShowLoading] = useState(true);
-  const [currentScreen, setCurrentScreen] = useState('Home');
-  const fadeAnim = useState(new Animated.Value(1))[0];
-  const slideAnim = useState(new Animated.Value(0))[0];
-  const glowAnim = useState(new Animated.Value(1))[0]; // Animation for the glow effect
+  const [currentScreen, setCurrentScreen] = useState<ScreenName>('Home');
+  const [previousScreen, setPreviousScreen] = useState<ScreenName | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(1)).current; // Animation for the glow effect
+  
+  // Navigation event listeners
+  const navigationListeners = useRef<Record<string, Set<NavigationListener>>>({
+    beforeRemove: new Set(),
+  }).current;
+
+  // Keep track of screen params
+  const [screenParams, setScreenParams] = useState<Record<ScreenName, any>>({
+    Home: {},
+    Cart: {},
+    Search: {},
+    Favorites: {},
+    Settings: {}
+  });
 
   // Start the glow animation
   useEffect(() => {
@@ -82,24 +111,40 @@ export default function App() {
     setShowLoading(false);
   };
 
-  if (!fontsLoaded) {
-    return null; // Return null while fonts are loading
-  }
+  // Notify listeners before screen change
+  const notifyBeforeRemove = () => {
+    navigationListeners.beforeRemove.forEach(listener => listener());
+  };
 
-  const handleNavPress = (screen: string) => {
-    if (screen === currentScreen) return;
+  // Improved screen transition with proper lifecycle
+  const handleNavPress = (screen: ScreenName, params?: any) => {
+    if (screen === currentScreen && !params) return;
+    
+    setIsTransitioning(true);
+    setPreviousScreen(currentScreen);
+    
+    // Update params for the target screen if provided
+    if (params) {
+      setScreenParams(prev => ({
+        ...prev,
+        [screen]: params
+      }));
+    }
+    
+    // Notify current screen it's about to be removed
+    notifyBeforeRemove();
     
     // Fade out current screen
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 200,
+      duration: 150, // Faster fade out
       useNativeDriver: true
     }).start(() => {
       // Change screen
       setCurrentScreen(screen);
       
-      // Reset slide position
-      slideAnim.setValue(50);
+      // Reset slide position for entrance animation
+      slideAnim.setValue(30); // Reduced from 50 for subtler animation
       
       // Slide and fade in new screen
       Animated.parallel([
@@ -111,22 +156,47 @@ export default function App() {
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 250,
-          useNativeDriver: true
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease)
         })
-      ]).start();
+      ]).start(() => {
+        setIsTransitioning(false);
+      });
     });
   };
 
-  // Create simple navigation object
-  const navigation = {
-    navigate: (screen: string) => handleNavPress(screen),
-    goBack: () => handleNavPress('Home')
+  // Enhanced navigation object with proper listeners and params support
+  const navigation: SimpleNavigation = {
+    navigate: (screen: string, params?: any) => handleNavPress(screen as ScreenName, params),
+    goBack: () => handleNavPress('Home'),
+    addListener: (event: string, callback: NavigationListener) => {
+      if (!navigationListeners[event]) {
+        navigationListeners[event] = new Set();
+      }
+      navigationListeners[event].add(callback);
+      
+      // Return unsubscribe function
+      return () => {
+        navigationListeners[event].delete(callback);
+      };
+    },
+    setParams: (params: any) => {
+      // Update params for the current screen
+      setScreenParams(prev => ({
+        ...prev,
+        [currentScreen]: {
+          ...prev[currentScreen],
+          ...params
+        }
+      }));
+    }
   };
 
   const NavButton = ({ onPress, children, isActive }: NavButtonProps) => (
     <Pressable 
       style={[styles.navItem, isActive ? styles.activeNavItem : null]} 
       onPress={onPress}
+      disabled={isTransitioning} // Prevent navigation during transitions
     >
       {isActive ? (
         <Animated.View 
@@ -142,6 +212,10 @@ export default function App() {
       )}
     </Pressable>
   );
+
+  if (!fontsLoaded) {
+    return null; // Return null while fonts are loading
+  }
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
@@ -161,11 +235,11 @@ export default function App() {
           {/* Always render the main app */}
           <Animated.View 
             style={[
-              {height: Platform.OS == 'android' ? '88%' : '92%'}, 
+              styles.screenContainer,
               {opacity: fadeAnim, transform: [{translateY: slideAnim}]}
             ]}
           >
-            {currentScreen === 'Home' && <MainPage navigation={navigation} />}
+            {currentScreen === 'Home' && <MainPage navigation={navigation} route={{ params: screenParams.Home }} />}
             {currentScreen === 'Cart' && <CartPage navigation={navigation} />}
             {currentScreen === 'Search' && <SearchPage navigation={navigation} />}
             {currentScreen === 'Favorites' && <FavoritesPage navigation={navigation} />}
@@ -227,6 +301,10 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  screenContainer: {
+    height: Platform.OS === 'android' ? '88%' : '92%',
+    width: '100%',
   },
   navbar: {
     flexDirection: 'row',

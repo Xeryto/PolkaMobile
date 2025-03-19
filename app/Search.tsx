@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -15,8 +15,9 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: any) => void;
   goBack: () => void;
+  setParams?: (params: any) => void;
 }
 
 interface SearchProps {
@@ -42,6 +43,48 @@ interface SelectedFilters {
   style: string;
 }
 
+// Simulated API to fetch more search results
+const fetchMoreSearchResults = (query: string = '', filters: SelectedFilters = {
+  category: 'Категория',
+  brand: 'Бренд',
+  style: 'Стиль'
+}, count: number = 2): Promise<SearchItem[]> => {
+  // In a real app, this would be an API call with the search query and filters
+  return new Promise((resolve) => {
+    // Simulate network delay
+    setTimeout(() => {
+      // Generate unique IDs for new search results items
+      const timestamp = new Date().getTime();
+      const newResults: SearchItem[] = [];
+      
+      for (let i = 0; i < count; i++) {
+        // Create unique ID based on timestamp and index
+        const uniqueId = parseInt(`${timestamp}${i}`.slice(-9));
+        newResults.push({
+          id: uniqueId,
+          name: `SEARCH RESULT ${uniqueId % 1000}${query ? ` - ${query}` : ''}`,
+          price: `${(Math.random() * 50000).toFixed(0)} р`,
+          image: i % 2 === 0 ? 
+            require('./assets/Vision.png') : 
+            require('./assets/Vision2.png')
+        });
+      }
+      
+      console.log('Search API - Fetched new results:', newResults);
+      resolve(newResults);
+    }, 500); // 500ms delay to simulate network
+  });
+};
+
+// Persistent storage for search results that survives component unmounts
+const persistentSearchStorage: {
+  results: SearchItem[];
+  initialized: boolean;
+} = {
+  results: [],
+  initialized: false
+};
+
 const Search = ({ navigation }: SearchProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -51,56 +94,50 @@ const Search = ({ navigation }: SearchProps) => {
     brand: 'Бренд',
     style: 'Стиль'
   });
-  const [searchResults, setSearchResults] = useState<SearchItem[]>([
-    { 
-      id: 1, 
-      name: 'NAME', 
-      price: '25 000 р', 
-      image: require('./assets/Vision.png') 
-    },
-    { 
-      id: 2, 
-      name: 'ANOTHER NAME', 
-      price: '30 000 р', 
-      image: require('./assets/Vision2.png') 
-    },
-    { 
-      id: 3, 
-      name: 'THIRD ITEM', 
-      price: '22 000 р', 
-      image: require('./assets/Vision.png') 
-    },
-    { 
-      id: 4, 
-      name: 'FOURTH ITEM', 
-      price: '18 000 р', 
-      image: require('./assets/Vision2.png') 
-    },
-    { 
-      id: 5, 
-      name: 'NAME', 
-      price: '25 000 р', 
-      image: require('./assets/Vision.png') 
-    },
-    { 
-      id: 6, 
-      name: 'ANOTHER NAME', 
-      price: '30 000 р', 
-      image: require('./assets/Vision2.png') 
-    },
-    { 
-      id: 7, 
-      name: 'THIRD ITEM', 
-      price: '22 000 р', 
-      image: require('./assets/Vision.png') 
-    },
-    { 
-      id: 8, 
-      name: 'FOURTH ITEM', 
-      price: '18 000 р', 
-      image: require('./assets/Vision2.png') 
-    },
-  ]);
+  
+  // Initialize searchResults with persistent storage or default items
+  const [searchResults, setSearchResults] = useState<SearchItem[]>(() => {
+    // If we already have results in our persistent storage, use those
+    if (persistentSearchStorage.initialized) {
+      console.log('Search - Using persistent results:', persistentSearchStorage.results);
+      return persistentSearchStorage.results;
+    }
+    
+    // Otherwise initialize with default items
+    const defaultResults = [
+      { 
+        id: 1, 
+        name: 'NAME', 
+        price: '25 000 р', 
+        image: require('./assets/Vision.png') 
+      },
+      { 
+        id: 2, 
+        name: 'ANOTHER NAME', 
+        price: '30 000 р', 
+        image: require('./assets/Vision2.png') 
+      },
+      { 
+        id: 3, 
+        name: 'THIRD ITEM', 
+        price: '22 000 р', 
+        image: require('./assets/Vision.png') 
+      },
+      { 
+        id: 4, 
+        name: 'FOURTH ITEM', 
+        price: '18 000 р', 
+        image: require('./assets/Vision2.png') 
+      },
+    ];
+    
+    // Save to persistent storage
+    persistentSearchStorage.results = defaultResults;
+    persistentSearchStorage.initialized = true;
+    console.log('Search - Initialized persistent results storage');
+    
+    return defaultResults;
+  });
 
   const filterOptions: FilterOptions = {
     category: ['Dresses', 'Tops', 'Pants', 'Accessories'],
@@ -143,11 +180,90 @@ const Search = ({ navigation }: SearchProps) => {
     return selectedFilters[filterType] !== defaultValues[filterType];
   };
 
+  // Handle item selection and removal
+  const handleItemPress = (item: SearchItem, index: number) => {
+    // Remove the selected item from the array
+    setSearchResults(prevResults => {
+      const newResults = [...prevResults];
+      // Remove the selected item
+      newResults.splice(index, 1);
+      
+      // Update persistent storage
+      persistentSearchStorage.results = newResults;
+      console.log('Search - Item removed, remaining results:', newResults.length);
+      
+      return newResults;
+    });
+    
+    // If we're running low on search results (less than 3), fetch more
+    if (searchResults.length < 4) {
+      console.log('Search - Low on results, fetching more from API');
+      // Fetch exactly 2 new items at a time
+      fetchMoreSearchResults(searchQuery, selectedFilters, 2).then(newResults => {
+        setSearchResults(prevResults => {
+          const updatedResults = [...prevResults, ...newResults];
+          // Update persistent storage
+          persistentSearchStorage.results = updatedResults;
+          console.log('Search - Added new results, total count:', updatedResults.length);
+          return updatedResults;
+        });
+      });
+    }
+    
+    // Create params to pass the selected item to MainPage
+    const params = { 
+      addCardItem: {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image
+      }
+    };
+    
+    console.log('Search - Navigating to Home with item:', params);
+    
+    // Navigate to Home screen with the selected item as a parameter
+    navigation.navigate('Home', params);
+  };
+
+  // Update the filter function to check both name and query
   const filteredResults = searchQuery.length > 0
     ? searchResults.filter(item => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : searchResults;
+
+  // Update persistent storage whenever searchResults change
+  useEffect(() => {
+    persistentSearchStorage.results = searchResults;
+    console.log('Search - Updated persistent storage with results:', searchResults);
+  }, [searchResults]);
+
+  // Fetch new results when search query or filters change
+  useEffect(() => {
+    // Only fetch if the search is active (user has clicked in the search field)
+    if (isSearchActive) {
+      // Add a small delay to avoid fetching on every keystroke
+      const timer = setTimeout(() => {
+        console.log('Search - Query or filters changed, fetching new results');
+        fetchMoreSearchResults(searchQuery, selectedFilters, 4).then(newResults => {
+          setSearchResults(prevResults => {
+            // If search query changed, replace all results
+            // If just filters changed, append to existing results
+            const wasQueryChange = searchQuery.length > 0;
+            const updatedResults = wasQueryChange ? newResults : [...prevResults, ...newResults];
+            
+            // Update persistent storage
+            persistentSearchStorage.results = updatedResults;
+            console.log('Search - Added new filtered results, total count:', updatedResults.length);
+            return updatedResults;
+          });
+        });
+      }, 500); // 500ms debounce
+      
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, selectedFilters.category, selectedFilters.brand, selectedFilters.style, isSearchActive]);
 
   const renderItem = ({ item, index }: { item: SearchItem, index: number }) => (
     <Animated.View
@@ -156,7 +272,7 @@ const Search = ({ navigation }: SearchProps) => {
     >
       <Pressable 
         style={styles.imageContainer}
-        onPress={() => navigation.navigate('Home')}
+        onPress={() => handleItemPress(item, index)}
       >
         <Image source={item.image} style={styles.itemImage} />
         <View style={styles.itemInfo}>
@@ -252,7 +368,10 @@ const Search = ({ navigation }: SearchProps) => {
           style={{flex: 1}}
         >
           {filteredResults.length === 0 ? (
-            <Text style={styles.noResultsText}>No results found</Text>
+            <View style={styles.noResultsContainer}>
+              <Text style={styles.noResultsText}>No results found</Text>
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
           ) : (
             <FlatList
               style={[
@@ -476,6 +595,19 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     marginTop: 20,
+  },
+  noResultsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontFamily: 'REM',
+    fontSize: 14,
+    color: 'gray',
+    textAlign: 'center',
+    marginTop: 10,
   },
   searchContainerInitial: {
     marginBottom: '5%',
