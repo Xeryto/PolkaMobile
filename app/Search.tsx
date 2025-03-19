@@ -8,10 +8,15 @@ import {
   Pressable,
   Image,
   Dimensions,
-  Platform
+  Platform,
+  TouchableOpacity,
+  Keyboard
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
+
+// Create animated text component using proper method for this version
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
@@ -29,6 +34,7 @@ interface SearchItem {
   name: string;
   price: string;
   image: any;
+  isLiked: boolean;
 }
 
 interface FilterOptions {
@@ -60,13 +66,18 @@ const fetchMoreSearchResults = (query: string = '', filters: SelectedFilters = {
       for (let i = 0; i < count; i++) {
         // Create unique ID based on timestamp and index
         const uniqueId = parseInt(`${timestamp}${i}`.slice(-9));
+        
+        // For search results, 30% chance of being already liked
+        const isRandomlyLiked = Math.random() < 0.3;
+        
         newResults.push({
           id: uniqueId,
           name: `SEARCH RESULT ${uniqueId % 1000}${query ? ` - ${query}` : ''}`,
           price: `${(Math.random() * 50000).toFixed(0)} р`,
           image: i % 2 === 0 ? 
             require('./assets/Vision.png') : 
-            require('./assets/Vision2.png')
+            require('./assets/Vision2.png'),
+          isLiked: isRandomlyLiked // Set liked status from API
         });
       }
       
@@ -109,25 +120,29 @@ const Search = ({ navigation }: SearchProps) => {
         id: 1, 
         name: 'NAME', 
         price: '25 000 р', 
-        image: require('./assets/Vision.png') 
+        image: require('./assets/Vision.png'),
+        isLiked: true  // Set first item as liked by default
       },
       { 
         id: 2, 
         name: 'ANOTHER NAME', 
         price: '30 000 р', 
-        image: require('./assets/Vision2.png') 
+        image: require('./assets/Vision2.png'),
+        isLiked: false // Second item not liked
       },
       { 
         id: 3, 
         name: 'THIRD ITEM', 
         price: '22 000 р', 
-        image: require('./assets/Vision.png') 
+        image: require('./assets/Vision.png'),
+        isLiked: true  // Third item liked
       },
       { 
         id: 4, 
         name: 'FOURTH ITEM', 
         price: '18 000 р', 
-        image: require('./assets/Vision2.png') 
+        image: require('./assets/Vision2.png'),
+        isLiked: false // Fourth item not liked
       },
     ];
     
@@ -182,47 +197,55 @@ const Search = ({ navigation }: SearchProps) => {
 
   // Handle item selection and removal
   const handleItemPress = (item: SearchItem, index: number) => {
+    // Create params to pass the selected item to MainPage first
+    // This ensures we have the item data before removing it
+    const params = { 
+      addCardItem: {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        isLiked: item.isLiked // Pass the isLiked property
+      }
+    };
+    
+    console.log('Search - Navigating to Home with item:', params);
+    
     // Remove the selected item from the array
     setSearchResults(prevResults => {
       const newResults = [...prevResults];
       // Remove the selected item
       newResults.splice(index, 1);
       
-      // Update persistent storage
-      persistentSearchStorage.results = newResults;
+      // Log info
       console.log('Search - Item removed, remaining results:', newResults.length);
+      
+      // Check if we need to fetch more results
+      if (newResults.length < 4) {
+        console.log('Search - Low on results, fetching more from API');
+        // Fetch new items in a separate call to avoid state update issues
+        setTimeout(() => {
+          fetchMoreSearchResults(searchQuery, selectedFilters, 2).then(apiResults => {
+            setSearchResults(latestResults => {
+              const updatedResults = [...latestResults, ...apiResults];
+              console.log('Search - Added new results, total count:', updatedResults.length);
+              
+              // Update persistent storage
+              persistentSearchStorage.results = updatedResults;
+              return updatedResults;
+            });
+          });
+        }, 0);
+      } else {
+        // Always update persistent storage
+        persistentSearchStorage.results = newResults;
+      }
       
       return newResults;
     });
     
-    // If we're running low on search results (less than 3), fetch more
-    if (searchResults.length < 4) {
-      console.log('Search - Low on results, fetching more from API');
-      // Fetch exactly 2 new items at a time
-      fetchMoreSearchResults(searchQuery, selectedFilters, 2).then(newResults => {
-        setSearchResults(prevResults => {
-          const updatedResults = [...prevResults, ...newResults];
-          // Update persistent storage
-          persistentSearchStorage.results = updatedResults;
-          console.log('Search - Added new results, total count:', updatedResults.length);
-          return updatedResults;
-        });
-      });
-    }
-    
-    // Create params to pass the selected item to MainPage
-    const params = { 
-      addCardItem: {
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        image: item.image
-      }
-    };
-    
-    console.log('Search - Navigating to Home with item:', params);
-    
     // Navigate to Home screen with the selected item as a parameter
+    // Do this after starting the state update but don't wait for it to complete
     navigation.navigate('Home', params);
   };
 
@@ -246,16 +269,19 @@ const Search = ({ navigation }: SearchProps) => {
       // Add a small delay to avoid fetching on every keystroke
       const timer = setTimeout(() => {
         console.log('Search - Query or filters changed, fetching new results');
-        fetchMoreSearchResults(searchQuery, selectedFilters, 4).then(newResults => {
+        fetchMoreSearchResults(searchQuery, selectedFilters, 4).then(apiResults => {
           setSearchResults(prevResults => {
             // If search query changed, replace all results
             // If just filters changed, append to existing results
             const wasQueryChange = searchQuery.length > 0;
-            const updatedResults = wasQueryChange ? newResults : [...prevResults, ...newResults];
+            const updatedResults = wasQueryChange ? 
+              apiResults : 
+              [...prevResults, ...apiResults];
             
             // Update persistent storage
             persistentSearchStorage.results = updatedResults;
-            console.log('Search - Added new filtered results, total count:', updatedResults.length);
+            console.log('Search - Updated results with query change, total count:', updatedResults.length);
+            
             return updatedResults;
           });
         });
@@ -264,6 +290,26 @@ const Search = ({ navigation }: SearchProps) => {
       return () => clearTimeout(timer);
     }
   }, [searchQuery, selectedFilters.category, selectedFilters.brand, selectedFilters.style, isSearchActive]);
+
+  // Handle cancel search
+  const handleCancelSearch = () => {
+    // Reset search query
+    setSearchQuery('');
+    
+    // Reset any active filters
+    setActiveFilter(null);
+    setSelectedFilters({
+      category: 'Категория',
+      brand: 'Бренд',
+      style: 'Стиль'
+    });
+    
+    // Dismiss the keyboard if it's open
+    Keyboard.dismiss();
+    
+    // Exit search mode with animation
+    setIsSearchActive(false);
+  };
 
   const renderItem = ({ item, index }: { item: SearchItem, index: number }) => (
     <Animated.View
@@ -291,17 +337,38 @@ const Search = ({ navigation }: SearchProps) => {
         entering={FadeInDown.duration(400).delay(200)}
         style={[
           styles.searchContainer,
-          !isSearchActive && styles.searchContainerInitial
+          isSearchActive && styles.searchContainerActive
         ]}
       >
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Поиск"
-          placeholderTextColor="rgba(0,0,0,0.6)"
-          value={searchQuery}
-          onChangeText={handleSearch}
-          onFocus={handleSearchFocus}
-        />
+        <View style={styles.searchInputContainer}>
+          <TextInput
+            style={[
+              styles.searchInput,
+              isSearchActive && styles.searchInputActive
+            ]}
+            placeholder="Поиск"
+            placeholderTextColor="rgba(0,0,0,0.6)"
+            value={searchQuery}
+            onChangeText={handleSearch}
+            onFocus={handleSearchFocus}
+          />
+          
+          {isSearchActive && (
+            <Animated.View
+              entering={FadeInDown.duration(300)}
+              exiting={FadeOutUp.duration(200)}
+              style={styles.cancelButtonContainer}
+            >
+              <TouchableOpacity
+                onPress={handleCancelSearch}
+                style={styles.cancelButton}
+                //activeOpacity={0.7}
+              >
+                <Text style={styles.cancelButtonText}>Отмена</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
       </Animated.View>
       {isSearchActive && (
         <Animated.View 
@@ -389,12 +456,12 @@ const Search = ({ navigation }: SearchProps) => {
           )}
         </Animated.View>
         {!isSearchActive && (
-          <Animated.Text 
+          <AnimatedText 
             entering={FadeIn.duration(500)}
             style={styles.popularItemsText}
           >
             ПОПУЛЯРНОЕ
-          </Animated.Text>
+          </AnimatedText>
         )}
       </Animated.View>
     </View>
@@ -431,13 +498,30 @@ const styles = StyleSheet.create({
     elevation: 4,
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
+    overflow: 'hidden', // Ensures the children don't overflow the rounded corners
+  },
+  searchContainerActive: {
+    // When search is active, make search container slightly wider
+    width: '92%',
+    shadowOpacity: 0.35, // Make shadow more prominent when active
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: '100%',
+    paddingHorizontal: 15,
   },
   searchInput: {
-    padding: 15,
     fontSize: 30,
     fontFamily: 'Igra Sans',
-    width: '100%',
-    height: '100%'
+    flex: 1,
+    height: '100%',
+    paddingVertical: 10, // Add some vertical padding
+  },
+  searchInputActive: {
+    // Slightly smaller font when search is active to make room for cancel button
+    fontSize: 26,
   },
   filtersContainer: {
     marginBottom: '5%',
@@ -458,9 +542,11 @@ const styles = StyleSheet.create({
     //padding: 4,
     height: '100%',
     //marginHorizontal: -4
+    marginHorizontal: -6,
   },
   filterButton: {
-    flex: 1,
+    //flex: 1,
+    width: '30%',
     //paddingVertical: 4,
     //paddingHorizontal: 8,
     borderRadius: 41,
@@ -622,6 +708,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     marginBottom: 10,
+  },
+  cancelButtonContainer: {
+    marginRight: -15,
+  },
+  cancelButton: {
+    paddingHorizontal: Platform.OS === 'ios' ? 45 : 50, // Smaller padding on Android
+    backgroundColor: '#C8A688',
+    borderRadius: 41,
+    paddingVertical: Platform.OS === 'ios' ? 34 : 27, // Smaller on Android
+    height: '100%',
+  },
+  cancelButtonText: {
+    fontFamily: 'Igra Sans',
+    fontSize: 18,
+    color: '#4A3120',
   },
 });
 

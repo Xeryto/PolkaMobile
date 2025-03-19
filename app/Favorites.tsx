@@ -551,7 +551,7 @@ const MainContent = ({
           </Text>
           {activeView === 'friends' && (
             <Pressable onPress={toggleSearch} style={styles.plusIconContainer}>
-              <PlusSvg width={24} height={24} fill="#FFF" />
+              <PlusSvg width={32} height={32} fill="#FFF" />
             </Pressable>
           )}
         </View>
@@ -880,6 +880,7 @@ const styles = StyleSheet.create({
   },
   plusIconContainer: {
     padding: 5,
+    marginBottom: Platform.OS === 'ios' ? 0 : -10,
   },
   listContent: {
     paddingBottom: 20,

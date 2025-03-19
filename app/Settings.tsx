@@ -18,6 +18,7 @@ interface SimpleNavigation {
 
 interface SettingsProps {
   navigation: SimpleNavigation;
+  onLogout?: () => void; // Make it optional for backward compatibility
 }
 
 interface SettingItem {
@@ -28,7 +29,7 @@ interface SettingItem {
   onPress?: () => void;
 }
 
-const Settings = ({ navigation }: SettingsProps) => {
+const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [settings, setSettings] = useState<SettingItem[]>([
     { 
       id: 'notifications_section', 
@@ -110,6 +111,20 @@ const Settings = ({ navigation }: SettingsProps) => {
       type: 'button', 
       onPress: () => console.log('About Us') 
     },
+    // Add logout button if the onLogout prop is provided
+    ...(onLogout ? [
+      { 
+        id: 'logout_section', 
+        title: 'Session', 
+        type: 'section' as const
+      },
+      { 
+        id: 'logout', 
+        title: 'Logout', 
+        type: 'button' as const, 
+        onPress: onLogout 
+      }
+    ] : [])
   ]);
 
   const toggleSwitch = (id: string) => {

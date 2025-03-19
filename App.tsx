@@ -9,14 +9,71 @@ import SearchPage from './app/Search';
 import FavoritesPage from './app/Favorites';
 import SettingsPage from './app/Settings';
 import LoadingScreen from './app/LoadingScreen';
+import AuthLoadingScreen from './app/AuthLoadingScreen';
+import WelcomeScreen from './app/screens/WelcomeScreen';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as authStorage from './app/authStorage';
 
 import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
 import Search from './app/assets/Search.svg'; // Adjust the path as needed
 import Logo from './app/assets/Logo.svg'; // Adjust the path as needed
 import Heart from './app/assets/Heart.svg'; // Adjust the path as needed
 import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
+
+// Define types for cart items and global cart storage
+interface CartItem {
+  id: number;
+  name: string;
+  price: string;
+  image: any;
+  size: string;
+  quantity: number;
+}
+
+// Initialize global cart storage
+// This allows any component to access the cart directly
+global.cartStorage = {
+  items: [],
+  
+  // Add item to cart (handle duplicates with same size)
+  addItem(item: CartItem) {
+    // Check if item with same id AND size already exists
+    const existingItemIndex = this.items.findIndex(
+      i => i.id === item.id && i.size === item.size
+    );
+    
+    if (existingItemIndex >= 0) {
+      // Item with same id and size exists, increase quantity
+      this.items[existingItemIndex].quantity += item.quantity;
+      console.log('Cart - Increased quantity for existing item:', this.items[existingItemIndex]);
+    } else {
+      // New item, add to cart
+      this.items.push(item);
+      console.log('Cart - Added new item to cart:', item);
+    }
+  },
+  
+  // Remove item from cart
+  removeItem(id: number) {
+    this.items = this.items.filter(item => item.id !== id);
+    console.log('Cart - Removed item with id:', id);
+  },
+  
+  // Update quantity of an item
+  updateQuantity(id: number, change: number) {
+    const itemIndex = this.items.findIndex(item => item.id === id);
+    if (itemIndex >= 0) {
+      this.items[itemIndex].quantity = Math.max(1, this.items[itemIndex].quantity + change);
+      console.log('Cart - Updated quantity for item:', this.items[itemIndex]);
+    }
+  },
+  
+  // Get all items in cart
+  getItems() {
+    return this.items;
+  }
+};
 
 // Define types for improved navigation
 type ScreenName = 'Home' | 'Cart' | 'Search' | 'Favorites' | 'Settings';
@@ -47,7 +104,9 @@ const loadFonts = async () => {
 
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null means "checking"
   const [showLoading, setShowLoading] = useState(true);
+  const [showAuthLoading, setShowAuthLoading] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('Home');
   const [previousScreen, setPreviousScreen] = useState<ScreenName | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -70,6 +129,26 @@ export default function App() {
     Favorites: {},
     Settings: {}
   });
+
+  // Check if user is logged in on app start
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const loggedIn = await authStorage.isLoggedIn();
+        setIsLoggedIn(loggedIn);
+        // If not logged in, show auth loading screen
+        if (!loggedIn) {
+          setShowAuthLoading(true);
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        setIsLoggedIn(false);
+        setShowAuthLoading(true);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
 
   // Start the glow animation
   useEffect(() => {
@@ -109,6 +188,40 @@ export default function App() {
 
   const handleLoadingFinish = () => {
     setShowLoading(false);
+  };
+
+  const handleAuthLoadingFinish = () => {
+    // Use a slight delay to ensure animations complete smoothly
+    setTimeout(() => {
+      setShowAuthLoading(false);
+    }, 100);
+  };
+
+  const handleLogin = () => {
+    // First set the logged in state
+    setIsLoggedIn(true);
+    // Make sure auth loading screen is hidden
+    setShowAuthLoading(false);
+    // Show the main app loading screen
+    setShowLoading(true);
+  };
+
+  const handleRegister = () => {
+    // In a real app, you would navigate to a registration screen
+    // For now, simulate a successful registration and login
+    handleLogin();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authStorage.logout();
+      // Reset all loading states to ensure proper flow
+      setShowLoading(false);
+      setShowAuthLoading(true);
+      setIsLoggedIn(false);
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   // Notify listeners before screen change
@@ -217,6 +330,31 @@ export default function App() {
     return null; // Return null while fonts are loading
   }
 
+  // Still checking login status
+  if (isLoggedIn === null) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  // If not logged in, show the welcome screen
+  if (!isLoggedIn) {
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        {/* Always render WelcomeScreen in the background */}
+        <WelcomeScreen onLogin={handleLogin} onRegister={handleRegister} />
+        
+        {/* Overlay the AuthLoadingScreen on top while it's active */}
+        {showAuthLoading && (
+          <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
+        )}
+      </GestureHandlerRootView>
+    );
+  }
+
+  // User is logged in, show the main app
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <LinearGradient
@@ -243,7 +381,12 @@ export default function App() {
             {currentScreen === 'Cart' && <CartPage navigation={navigation} />}
             {currentScreen === 'Search' && <SearchPage navigation={navigation} />}
             {currentScreen === 'Favorites' && <FavoritesPage navigation={navigation} />}
-            {currentScreen === 'Settings' && <SettingsPage navigation={navigation} />}
+            {currentScreen === 'Settings' && (
+              <SettingsPage 
+                navigation={navigation} 
+                onLogout={handleLogout} // Pass logout handler to Settings
+              />
+            )}
           </Animated.View>
 
           <View style={styles.navbar}>
@@ -346,5 +489,11 @@ const styles = StyleSheet.create({
   icon: {
     width: 20,
     height: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3E6D6',
   },
 });

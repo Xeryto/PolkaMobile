@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, Pressable, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: any) => void;
   goBack: () => void;
 }
 
@@ -20,40 +20,58 @@ interface CartItem {
   size: string;
   image: any;
   quantity: number;
+  isLiked?: boolean; // Add this line
 }
 
 const Cart = ({ navigation }: CartProps) => {
-  const [cartItems, setCartItems] = React.useState<CartItem[]>([
-    { 
-      id: 1, 
-      name: 'NAME', 
-      price: '25 000 р', 
-      size: 'M',
-      image: require('./assets/Vision.png'),
-      quantity: 1
-    },
-    { 
-      id: 2, 
-      name: 'ANOTHER NAME', 
-      price: '30 000 р', 
-      size: 'L',
-      image: require('./assets/Vision2.png'),
-      quantity: 1
-    },
-  ]);
+  // Use state to ensure UI updates when cart changes
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  
+  // Load cart items on mount and when component gains focus
+  useEffect(() => {
+    // Load the initial cart items
+    if (global.cartStorage) {
+      setCartItems([...global.cartStorage.getItems()]);
+    }
+    
+    // Set up an interval to refresh cart items (simulates realtime updates)
+    const intervalId = setInterval(() => {
+      if (global.cartStorage) {
+        setCartItems([...global.cartStorage.getItems()]);
+      }
+    }, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   const updateQuantity = (id: number, change: number) => {
-    setCartItems(prevItems => 
-      prevItems.map(item => 
-        item.id === id 
-          ? { ...item, quantity: Math.max(1, item.quantity + change) } 
-          : item
-      )
-    );
+    if (global.cartStorage) {
+      global.cartStorage.updateQuantity(id, change);
+      setCartItems([...global.cartStorage.getItems()]);
+    }
   };
 
   const removeItem = (id: number) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== id));
+    if (global.cartStorage) {
+      global.cartStorage.removeItem(id);
+      setCartItems([...global.cartStorage.getItems()]);
+    }
+  };
+  
+  // Handle item press to send it to MainPage
+  const handleItemPress = (item: CartItem) => {
+    // Create a card item from the cart item
+    const cardItem = {
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+      isLiked: item.isLiked // Default to not liked when coming from cart
+    };
+    
+    // Navigate to home with the item
+    console.log('Cart - Sending item to MainPage:', cardItem);
+    navigation.navigate('Home', { addCardItem: cardItem });
   };
 
   const calculateTotal = () => {
@@ -86,7 +104,7 @@ const Cart = ({ navigation }: CartProps) => {
             <Text style={styles.emptyCartText}>Your cart is empty</Text>
             <Pressable 
               style={styles.shopButton}
-              onPress={() => navigation.navigate('MainPage')}
+              onPress={() => navigation.navigate('Home')}
             >
               <Text style={styles.shopButtonText}>Continue Shopping</Text>
             </Pressable>
@@ -96,31 +114,36 @@ const Cart = ({ navigation }: CartProps) => {
             <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
               {cartItems.map((item, index) => (
                 <Animated.View 
-                  key={item.id}
+                  key={`${item.id}-${item.size}-${index}`}
                   entering={FadeInDown.duration(500).delay(200 + index * 100)}
                   style={styles.cartItem}
                 >
-                  <Image source={item.image} style={styles.itemImage} />
-                  <View style={styles.itemDetails}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemPrice}>{item.price}</Text>
-                    <Text style={styles.itemSize}>Size: {item.size}</Text>
-                    <View style={styles.quantityContainer}>
-                      <Pressable 
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.id, -1)}
-                      >
-                        <Text style={styles.quantityButtonText}>-</Text>
-                      </Pressable>
-                      <Text style={styles.quantityText}>{item.quantity}</Text>
-                      <Pressable 
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.id, 1)}
-                      >
-                        <Text style={styles.quantityButtonText}>+</Text>
-                      </Pressable>
+                  <Pressable 
+                    style={styles.itemPressable}
+                    onPress={() => handleItemPress(item)}
+                  >
+                    <Image source={item.image} style={styles.itemImage} />
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemPrice}>{item.price}</Text>
+                      <Text style={styles.itemSize}>Size: {item.size}</Text>
+                      <View style={styles.quantityContainer}>
+                        <Pressable 
+                          style={styles.quantityButton}
+                          onPress={() => updateQuantity(item.id, -1)}
+                        >
+                          <Text style={styles.quantityButtonText}>-</Text>
+                        </Pressable>
+                        <Text style={styles.quantityText}>{item.quantity}</Text>
+                        <Pressable 
+                          style={styles.quantityButton}
+                          onPress={() => updateQuantity(item.id, 1)}
+                        >
+                          <Text style={styles.quantityButtonText}>+</Text>
+                        </Pressable>
+                      </View>
                     </View>
-                  </View>
+                  </Pressable>
                   <Pressable 
                     style={styles.removeButton}
                     onPress={() => removeItem(item.id)}
@@ -318,6 +341,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontFamily: 'IgraSans',
     fontSize: 18,
+  },
+  itemPressable: {
+    flexDirection: 'row',
+    flex: 1,
   },
 });
 

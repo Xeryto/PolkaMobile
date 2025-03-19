@@ -20,6 +20,29 @@ import HeartFilled from './assets/HeartFilled.svg';
 import More from './assets/More.svg';
 import Seen from './assets/Seen.svg';
 
+// Extend the global namespace to include our cart storage
+declare global {
+  interface CartItem {
+    id: number;
+    name: string;
+    price: string;
+    image: any;
+    size: string;
+    quantity: number;
+    isLiked?: boolean; // Add this line
+  }
+  
+  interface CartStorage {
+    items: CartItem[];
+    addItem: (item: CartItem) => void;
+    removeItem: (id: number) => void;
+    updateQuantity: (id: number, change: number) => void;
+    getItems: () => CartItem[];
+  }
+  
+  var cartStorage: CartStorage;
+}
+
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
   navigate: (screen: string) => void;
@@ -42,6 +65,7 @@ interface CardItem {
   name: string;
   price: string;
   image: any;
+  isLiked?: boolean; // Add liked status to the card itself
 }
 
 // Global cards storage that persists even when component unmounts
@@ -67,19 +91,41 @@ const fetchMoreCards = (count: number = 2): Promise<CardItem[]> => {
       for (let i = 0; i < count; i++) {
         // Create unique ID based on timestamp and index
         const uniqueId = parseInt(`${timestamp}${i}`.slice(-9));
+        
+        // Randomly determine if the card is already liked (simulating API response)
+        // For API cards, 20% chance of being liked
+        const isRandomlyLiked = Math.random() < 0.2;
+        
         newCards.push({
           id: uniqueId,
           name: `API ITEM ${uniqueId % 1000}`,
           price: `${(Math.random() * 50000).toFixed(0)} р`,
           image: i % 2 === 0 ? 
             require('./assets/Vision.png') : 
-            require('./assets/Vision2.png')
+            require('./assets/Vision2.png'),
+          isLiked: isRandomlyLiked // Set liked status from API
         });
       }
       
       console.log('API - Fetched new cards:', newCards);
       resolve(newCards);
     }, 500); // 500ms delay to simulate network
+  });
+};
+
+// Simulate API call to like/unlike an item
+const simulateLikeApi = (cardId: number, setLiked: boolean): Promise<boolean> => {
+  return new Promise((resolve) => {
+    // Simulate network delay
+    setTimeout(() => {
+      console.log(`API - ${setLiked ? 'Liking' : 'Unliking'} card ID ${cardId}`);
+      
+      // In a real app, this would send a request to the server
+      // to update the card's like status. Here we update the card directly.
+      // We'll do this in the component instead of here
+      
+      resolve(true);
+    }, 300); // 300ms delay to simulate network
   });
 };
 
@@ -108,12 +154,11 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
-  const [likedCards, setLikedCards] = useState<number[]>([]);
   const [isLongPressing, setIsLongPressing] = useState(false);
   
   // Debounce timer to prevent rapid taps
   const lastTapRef = useRef<number>(0);
-  const TAP_DEBOUNCE = 300; // Milliseconds 
+  const TAP_DEBOUNCE = 200; // Milliseconds 
 
   // Initialize with default items but only once
   const [cards, setCards] = useState<CardItem[]>(() => {
@@ -129,13 +174,15 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         id: 1, 
         name: 'DEFAULT ITEM 1', 
         price: '25 000 р', 
-        image: require('./assets/Vision.png') 
+        image: require('./assets/Vision.png'),
+        isLiked: false // Default items start unliked
       },
       { 
         id: 2, 
         name: 'DEFAULT ITEM 2', 
         price: '30 000 р', 
-        image: require('./assets/Vision2.png') 
+        image: require('./assets/Vision2.png'),
+        isLiked: false // Default items start unliked
       }
     ];
     
@@ -208,25 +255,31 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     longPressScale.setValue(1);
   };
 
-  // Simplified heart animation with haptic feedback
-  const animateHeart = (currentCardId: number, isLiked: boolean) => {
+  // Modified heart animation with haptic feedback and API call
+  const animateHeart = (currentCardIndex: number) => {
     // Clean up any existing animations
     cleanupHeartAnimations();
     
-    // Toggle like status immediately for responsive UI
-    setLikedCards(prevLiked => {
-      // If currently liked, remove from liked cards
-      if (isLiked) {
-        return prevLiked.filter(id => id !== currentCardId);
-      } 
-      // Otherwise add to liked cards
-      else {
-        return [...prevLiked, currentCardId];
-      }
+    const currentCard = cards[currentCardIndex];
+    const isCurrentlyLiked = currentCard.isLiked;
+    
+    // Update the card's liked status
+    setCards(prevCards => {
+      const newCards = [...prevCards];
+      // Toggle like status
+      newCards[currentCardIndex] = {
+        ...newCards[currentCardIndex],
+        isLiked: !isCurrentlyLiked
+      };
+      
+      // Make API call to update like status
+      simulateLikeApi(newCards[currentCardIndex].id, !isCurrentlyLiked);
+      
+      return newCards;
     });
     
     // Provide haptic feedback based on action
-    if (isLiked) {
+    if (isCurrentlyLiked) {
       // Unlike feedback - light impact
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else {
@@ -287,16 +340,22 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   
   const handleHeartLongPressOut = () => {
     if (isLongPressing) {
-      const currentCardId = cards[currentCardIndex].id;
-      const isLiked = likedCards.includes(currentCardId);
+      const currentCard = cards[currentCardIndex];
+      const isCurrentlyLiked = currentCard.isLiked;
       
-      // Toggle like status
-      setLikedCards(prevLiked => {
-        if (isLiked) {
-          return prevLiked.filter(id => id !== currentCardId);
-        } else {
-          return [...prevLiked, currentCardId];
-        }
+      // Update the card's liked status
+      setCards(prevCards => {
+        const newCards = [...prevCards];
+        // Toggle like status
+        newCards[currentCardIndex] = {
+          ...newCards[currentCardIndex],
+          isLiked: !isCurrentlyLiked
+        };
+        
+        // Make API call to update like status
+        simulateLikeApi(newCards[currentCardIndex].id, !isCurrentlyLiked);
+        
+        return newCards;
       });
       
       // Provide haptic feedback
@@ -344,11 +403,8 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     if (now - lastTapRef.current < TAP_DEBOUNCE) return;
     lastTapRef.current = now;
     
-    const currentCardId = cards[currentCardIndex].id;
-    const isLiked = likedCards.includes(currentCardId);
-    
-    // Trigger animation
-    animateHeart(currentCardId, isLiked);
+    // Trigger animation with current card index
+    animateHeart(currentCardIndex);
   };
 
   // Clean up animations when component unmounts or changes
@@ -362,54 +418,60 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     if (isAnimating) return;
     setIsAnimating(true);
     
+    // Get current card before it's removed
+    const currentCard = cards[currentCardIndex];
+    
     // Animate card moving off screen
     Animated.timing(pan, {
       toValue: { 
         x: direction === 'right' ? screenWidth : 0, 
         y: -screenHeight 
       },
-      duration: 300,
+      duration: 200,
       easing: Easing.ease,
       useNativeDriver: false
     }).start(() => {
-      // Remove the current card from the array instead of just moving the index
+      // Remove the current card from the array
       setCards(prevCards => {
+        // Create new array without the current card
         const newCards = [...prevCards];
-        // Remove the current card
         if (newCards.length > 0) {
           newCards.splice(currentCardIndex, 1);
         }
         
-        // Update persistent storage
-        persistentCardStorage.cards = newCards;
-        console.log('MainPage - Card removed, remaining cards:', newCards.length);
+        // Log removed card info
+        console.log(`MainPage - Card ${currentCard?.id} was swiped ${direction}`);
+        console.log('MainPage - Remaining cards:', newCards.length);
+        
+        // Reset current index if needed
+        const newIndex = currentCardIndex >= newCards.length ? 
+          Math.max(0, newCards.length - 1) : 
+          currentCardIndex;
+        setTimeout(() => setCurrentCardIndex(newIndex), 0);
+        
+        // Check if we need to fetch more cards
+        // Do this inside the state update callback to have access to the new length
+        if (newCards.length < 2) {
+          console.log('MainPage - Low on cards, fetching more from API');
+          fetchMoreCards(1).then(apiCards => {
+            // We need to use another setCards call because we can't
+            // update the state we're currently setting
+            setCards(latestCards => {
+              const updatedCards = [...latestCards, ...apiCards];
+              console.log('MainPage - Added new cards, total count:', updatedCards.length);
+              
+              // Update persistent storage
+              persistentCardStorage.cards = updatedCards;
+              return updatedCards;
+            });
+          });
+        } else {
+          // Always update persistent storage
+          persistentCardStorage.cards = newCards;
+        }
         
         return newCards;
       });
-      
-      // Reset current index if needed (if we removed the last card)
-      setCurrentCardIndex(prevIndex => {
-        if (prevIndex >= cards.length - 1) {
-          return Math.max(0, cards.length - 2);
-        }
-        return prevIndex;
-      });
-      
-      // API INTEGRATION POINT:
-      // If we're running low on cards (less than 2), fetch more
-      if (cards.length < 3) {
-        console.log('MainPage - Low on cards, fetching more from API');
-        // Fetch exactly 2 new cards at a time
-        fetchMoreCards(2).then(newCards => {
-          setCards(prevCards => {
-            const updatedCards = [...prevCards, ...newCards];
-            // Update persistent storage
-            persistentCardStorage.cards = updatedCards;
-            console.log('MainPage - Added new cards, total count:', updatedCards.length);
-            return updatedCards;
-          });
-        });
-      }
       
       // Reset pan position
       pan.setValue({ x: 0, y: screenHeight });
@@ -456,6 +518,32 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   };
 
   const handleSizeSelect = (size: string) => {
+    // Add the current card with selected size to cart
+    const currentCard = cards[currentCardIndex];
+    const cartItem = {
+      id: currentCard.id,
+      name: currentCard.name,
+      price: currentCard.price,
+      image: currentCard.image,
+      size: size,
+      quantity: 1,
+      isLiked: currentCard.isLiked
+    };
+    
+    // Add item to the cart using global storage (we'll create this shortly)
+    // If we already have global cart storage defined, use it
+    if (typeof global.cartStorage !== 'undefined') {
+      console.log('MainPage - Adding item to cart:', cartItem);
+      global.cartStorage.addItem(cartItem);
+      
+      // Provide haptic feedback on successful add
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } else {
+      console.log('MainPage - Cart storage not initialized');
+    }
+    
     // Reset animations and hide size selection
     Animated.parallel([
       Animated.timing(buttonsTranslateX, {
@@ -478,12 +566,13 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       })
     ]).start(() => {
       setShowSizeSelection(false);
-      console.log(`Selected size: ${size}`);
+      console.log(`Selected size: ${size} for item: ${currentCard.name}`);
     });
   };
 
   const renderCard = useCallback((card: CardItem) => {
-    const isLiked = likedCards.includes(card.id);
+    // Get liked status directly from the card object
+    const isLiked = card.isLiked;
 
     return (
       <Animated.View 
@@ -582,7 +671,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         </Animated.View>
       </Animated.View>
     );
-  }, [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan, isAnimating, likedCards, heartScale, longPressScale, isLongPressing]);
+  }, [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan, isAnimating, heartScale, longPressScale, isLongPressing]);
 
   // Fade in the entire page when component mounts
   useEffect(() => {
@@ -610,10 +699,16 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       const newItem = route.params.addCardItem;
       console.log('MainPage - Received item from Favorites:', newItem);
       
+      // For saved items from Favorites or Search, they should be liked by default
+      // unless explicitly set
+      const isItemLiked = newItem.isLiked !== undefined ? newItem.isLiked : true;
+      
       // Generate a unique timestamp to ensure we can add the same item multiple times
       // but still track and remove duplicates if we need to
       const uniqueItem = {
         ...newItem,
+        // Make sure isLiked is set properly
+        isLiked: isItemLiked,
         // Add a timestamp to the ID to make it unique if needed
         _addedAt: Date.now()
       };
@@ -687,7 +782,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
 
         {cards.length > 0 && (
           <Animated.View style={[styles.text, { opacity: fadeAnim }]}>
-            <Text style={styles.name}>
+            <Text style={styles.name} numberOfLines={1}>
               {cards[currentCardIndex]?.name || 'No Name'}
             </Text>
             <Text style={styles.price}>

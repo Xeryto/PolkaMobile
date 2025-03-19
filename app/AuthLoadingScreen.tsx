@@ -8,9 +8,9 @@ interface LoadingScreenProps {
 
 const { width, height } = Dimensions.get('window');
 const LOGO_SIZE_LARGE = Math.min(width, height) * 0.3; // 30% of the smallest dimension
-const LOGO_SIZE_SMALL = 21; // Size in the navbar
+const LOGO_SIZE_SMALL = LOGO_SIZE_LARGE*0.86; // Size in the navbar
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
+const AuthLoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const positionY = useRef(new Animated.Value(0)).current;
@@ -31,28 +31,29 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
     
     // First jump up - use a specific easing function to prevent bounce
     const jumpUp = Animated.timing(positionY, {
-      toValue: -height * 0.05, // Jump up by 15% of screen height
+      toValue: height * 0.05, // Jump up by 15% of screen height
       duration: 200,
       useNativeDriver: true,
       easing: Easing.out(Easing.cubic), // Smoother deceleration
     });
     
     // Calculate the position to move the logo all the way to the navbar
-    const navbarPosition = height*2.5;
+    const navbarPosition = -height*0.3;
     
-    // Then animate everything with precise control
+    // Keep the background visible but fade the logo
     const fadeOutLogo = Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 800,
-      useNativeDriver: true,
-      easing: Easing.linear, // Linear fade for consistency
-    });
-    
-    const fadeOutBg = Animated.timing(bgFadeAnim, {
       toValue: 0,
       duration: 500,
       useNativeDriver: true,
       easing: Easing.linear, // Linear fade for consistency
+    });
+    
+    // Important: Fade out the background completely for a smooth transition
+    const fadeOutBg = Animated.timing(bgFadeAnim, {
+      toValue: 0, // Completely fade out
+      duration: 800,
+      useNativeDriver: true,
+      easing: Easing.linear,
     });
     
     const shrink = Animated.timing(scaleAnim, {
@@ -62,7 +63,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
       easing: Easing.linear, // Linear scaling for consistency
     });
     
-    const moveDown = Animated.timing(positionY, {
+    const moveUp = Animated.timing(positionY, {
       toValue: navbarPosition,
       duration: 500,
       useNativeDriver: true,
@@ -73,15 +74,17 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
     Animated.sequence([
       initialDelay,
       jumpUp,
-      Animated.parallel([fadeOutLogo, shrink, moveDown, fadeOutBg])
+      Animated.parallel([fadeOutLogo, shrink, moveUp, fadeOutBg])
     ]).start(() => {
+      // Wait for the animation to complete before calling onFinish
+      // This is important so the Welcome screen is fully visible
       safelyFinish();
     });
     
     // Safety timeout in case animation fails to complete
     const safetyTimeout = setTimeout(() => {
       safelyFinish();
-    }, 2000); // 5 second timeout
+    }, 2500); // 2.5 second timeout
     
     // Clean up on unmount
     return () => clearTimeout(safetyTimeout);
@@ -141,4 +144,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoadingScreen; 
+export default AuthLoadingScreen;  
