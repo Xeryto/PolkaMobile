@@ -129,6 +129,95 @@ const simulateLikeApi = (cardId: number, setLiked: boolean): Promise<boolean> =>
   });
 };
 
+// Add this after imports and before MainPage component
+// Dedicated Heart Button component to improve like/unlike functionality
+interface HeartButtonProps {
+  isLiked: boolean;
+  onToggleLike: () => void;
+}
+
+const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
+  // Local animation state
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Track internal version of isLiked for debugging
+  const [internalIsLiked, setInternalIsLiked] = useState(isLiked);
+  
+  // Debug log props changes
+  useEffect(() => {
+    console.log(`HeartButton - Props changed: isLiked=${isLiked}`);
+    setInternalIsLiked(isLiked);
+  }, [isLiked]);
+  
+  // Handle heart button press
+  const handlePress = () => {
+    // Log press event for debugging
+    console.log(`HeartButton - Button pressed: current isLiked=${isLiked}`);
+    
+    // Prevent double-taps during animation
+    if (isAnimating) {
+      console.log('HeartButton - Ignoring press during animation');
+      return;
+    }
+    
+    // Set animating flag
+    setIsAnimating(true);
+    
+    // Trigger the callback to toggle like state
+    onToggleLike();
+    
+    // Update our internal state for debugging visibility
+    setInternalIsLiked(!internalIsLiked);
+    
+    // Provide haptic feedback
+    Haptics.impactAsync(
+      isLiked 
+        ? Haptics.ImpactFeedbackStyle.Light  // Feedback for unliking
+        : Haptics.ImpactFeedbackStyle.Medium // Feedback for liking
+    );
+    
+    // Animate the heart
+    Animated.sequence([
+      // Scale up
+      Animated.spring(heartScale, {
+        toValue: 1.3,
+        useNativeDriver: true,
+        speed: 40,
+        bounciness: 12,
+      }),
+      // Scale back down
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 30,
+        bounciness: 4,
+      })
+    ]).start(() => {
+      // Clear animation flag when complete
+      setIsAnimating(false);
+      console.log('HeartButton - Animation completed');
+    });
+  };
+  
+  return (
+    <Pressable 
+      style={[styles.button, { zIndex: 10 }]} // Added zIndex to ensure button is clickable
+      onPress={handlePress}
+      android_ripple={{ color: 'rgba(0,0,0,0.1)', radius: 20, borderless: true }}
+      hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+    >
+      <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+        {isLiked ? (
+          <HeartFilled width={33} height={33} />
+        ) : (
+          <Heart2 width={33} height={33} />
+        )}
+      </Animated.View>
+    </Pressable>
+  );
+};
+
 const MainPage = ({ navigation, route }: MainPageProps) => {
   const screenHeight = Dimensions.get('window').height;
   const screenWidth = Dimensions.get('window').width;
@@ -158,7 +247,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   
   // Debounce timer to prevent rapid taps
   const lastTapRef = useRef<number>(0);
-  const TAP_DEBOUNCE = 200; // Milliseconds 
+  const TAP_DEBOUNCE = 100; // Reduced from 200ms to make it more responsive
 
   // Initialize with default items but only once
   const [cards, setCards] = useState<CardItem[]>(() => {
@@ -227,12 +316,12 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 250,
+        duration: 100,
         useNativeDriver: true
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 250,
+        duration: 100,
         useNativeDriver: true
       })
     ]).start();
@@ -255,157 +344,64 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     longPressScale.setValue(1);
   };
 
-  // Modified heart animation with haptic feedback and API call
-  const animateHeart = (currentCardIndex: number) => {
-    // Clean up any existing animations
-    cleanupHeartAnimations();
+  // Toggle like status directly with proper boolean handling
+  const toggleLike = useCallback((index: number) => {
+    console.log(`toggleLike - Called with index: ${index}`);
     
-    const currentCard = cards[currentCardIndex];
-    const isCurrentlyLiked = currentCard.isLiked;
-    
-    // Update the card's liked status
-    setCards(prevCards => {
-      const newCards = [...prevCards];
-      // Toggle like status
-      newCards[currentCardIndex] = {
-        ...newCards[currentCardIndex],
-        isLiked: !isCurrentlyLiked
-      };
-      
-      // Make API call to update like status
-      simulateLikeApi(newCards[currentCardIndex].id, !isCurrentlyLiked);
-      
-      return newCards;
-    });
-    
-    // Provide haptic feedback based on action
-    if (isCurrentlyLiked) {
-      // Unlike feedback - light impact
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      // Like feedback - medium impact for Instagram-like feel
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (index < 0 || index >= cards.length) {
+      console.log(`toggleLike - Invalid index: ${index}, cards length: ${cards.length}`);
+      return;
     }
     
-    // Create and store the animation sequence
-    heartAnimationRef.current = Animated.sequence([
-      // Quick expand
-      Animated.spring(heartScale, {
-        toValue: 1.3,
-        useNativeDriver: true,
-        speed: 40,
-        bounciness: 12,
-        // Use restDisplacementThreshold to end animation more quickly
-        restDisplacementThreshold: 0.01,
-        restSpeedThreshold: 0.01
-      }),
-      // Return to normal with slight overshoot
-      Animated.spring(heartScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 30,
-        bounciness: 4
-      })
-    ]);
+    const card = cards[index];
+    const currentLikedStatus = card.isLiked === true;
+    const newLikedStatus = !currentLikedStatus;
     
-    // Start the animation
-    heartAnimationRef.current.start();
-  };
+    console.log(`toggleLike - Card ${card.id} toggling from ${currentLikedStatus} to ${newLikedStatus}`);
+    
+    // Create a completely new array to ensure state change is detected
+    const newCards = [...cards];
+    newCards[index] = {
+      ...card,
+      isLiked: newLikedStatus
+    };
+    
+    // Log before and after
+    console.log(`toggleLike - Before update: ${cards[index].isLiked}, After update will be: ${newCards[index].isLiked}`);
+    
+    // Update state with new array
+    setCards(newCards);
+    
+    // Update persistent storage
+    persistentCardStorage.cards = newCards;
+    
+    // Simulate API call
+    simulateLikeApi(card.id, newLikedStatus);
+    
+    console.log(`toggleLike - Updated card ${card.id} like status to: ${newLikedStatus}`);
+  }, [cards]);
 
-  // Handle long press on heart button
-  const handleHeartLongPressIn = () => {
-    // Skip if we're in the middle of the debounce period
-    const now = Date.now();
-    if (now - lastTapRef.current < TAP_DEBOUNCE) return;
+  // Modified heart animation with haptic feedback and API call
+  const animateHeart = useCallback((currentCardIndex: number) => {
+    console.log(`animateHeart - Called with card index: ${currentCardIndex}`);
     
-    setIsLongPressing(true);
+    // Just toggle the like status - animation is handled by the HeartButton component
+    toggleLike(currentCardIndex);
+  }, [toggleLike]);
+
+  // Add this new handler for direct click instead of long press
+  const [longPressingCardIndex, setLongPressingCardIndex] = useState<number | null>(null);
+  
+  const handleLongPress = useCallback((index: number) => {
+    console.log(`handleLongPress - Long press on card ${index}`);
+    if (index < 0 || index >= cards.length) return;
     
-    // Clean up any existing animations
-    cleanupHeartAnimations();
+    // Toggle the like status
+    toggleLike(index);
     
     // Provide haptic feedback
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Create and store animation
-    longPressAnimationRef.current = Animated.timing(longPressScale, {
-      toValue: 1.6,  // Larger expansion for long press
-      duration: 200,
-      useNativeDriver: true,
-      easing: Easing.out(Easing.ease)
-    });
-    
-    // Start the animation
-    longPressAnimationRef.current.start();
-  };
-  
-  const handleHeartLongPressOut = () => {
-    if (isLongPressing) {
-      const currentCard = cards[currentCardIndex];
-      const isCurrentlyLiked = currentCard.isLiked;
-      
-      // Update the card's liked status
-      setCards(prevCards => {
-        const newCards = [...prevCards];
-        // Toggle like status
-        newCards[currentCardIndex] = {
-          ...newCards[currentCardIndex],
-          isLiked: !isCurrentlyLiked
-        };
-        
-        // Make API call to update like status
-        simulateLikeApi(newCards[currentCardIndex].id, !isCurrentlyLiked);
-        
-        return newCards;
-      });
-      
-      // Provide haptic feedback
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Clean up existing animation
-      if (longPressAnimationRef.current) {
-        longPressAnimationRef.current.stop();
-        longPressAnimationRef.current = null;
-      }
-      
-      // Create return to normal animation
-      longPressAnimationRef.current = Animated.sequence([
-        // Quick bounce
-        Animated.spring(longPressScale, {
-          toValue: 1.2,
-          useNativeDriver: true,
-          speed: 40,
-          bounciness: 8
-        }),
-        // Return to normal
-        Animated.spring(longPressScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          speed: 35,
-          bounciness: 2
-        })
-      ]);
-      
-      // Start and handle completion
-      longPressAnimationRef.current.start(() => {
-        setIsLongPressing(false);
-        longPressAnimationRef.current = null;
-      });
-    }
-  };
-
-  // Handle heart press (Instagram-style)
-  const handleHeartPress = () => {
-    // Don't process a tap if we're in long-press mode
-    if (isLongPressing) return;
-    
-    // Debounce rapid taps
-    const now = Date.now();
-    if (now - lastTapRef.current < TAP_DEBOUNCE) return;
-    lastTapRef.current = now;
-    
-    // Trigger animation with current card index
-    animateHeart(currentCardIndex);
-  };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [cards, toggleLike]);
 
   // Clean up animations when component unmounts or changes
   useEffect(() => {
@@ -427,7 +423,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         x: direction === 'right' ? screenWidth : 0, 
         y: -screenHeight 
       },
-      duration: 200,
+      duration: 100,
       easing: Easing.ease,
       useNativeDriver: false
     }).start(() => {
@@ -530,8 +526,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       isLiked: currentCard.isLiked
     };
     
-    // Add item to the cart using global storage (we'll create this shortly)
-    // If we already have global cart storage defined, use it
+    // Add item to the cart using global storage
     if (typeof global.cartStorage !== 'undefined') {
       console.log('MainPage - Adding item to cart:', cartItem);
       global.cartStorage.addItem(cartItem);
@@ -567,12 +562,20 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     ]).start(() => {
       setShowSizeSelection(false);
       console.log(`Selected size: ${size} for item: ${currentCard.name}`);
+      
+      // After animations complete, navigate to cart screen
+      setTimeout(() => {
+        navigation.navigate('Cart');
+        console.log('MainPage - Navigating to Cart screen after adding item');
+      }, 100); // Small delay to ensure smooth animation completion
     });
   };
 
-  const renderCard = useCallback((card: CardItem) => {
-    // Get liked status directly from the card object
-    const isLiked = card.isLiked;
+  const renderCard = useCallback((card: CardItem, index: number) => {
+    // Get liked status directly from the card object and ensure it's a boolean
+    const isLiked = card.isLiked === true;
+    
+    console.log(`renderCard - Rendering card ${card.id} at index ${index}, isLiked: ${isLiked}`);
 
     return (
       <Animated.View 
@@ -628,25 +631,24 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
           >
             <Seen width={33} height={33} />
           </Pressable>
+          
+          {/* Use HeartButton with explicit index */}
+          <View style={{ zIndex: 999 }}>
+            <HeartButton 
+              isLiked={isLiked} 
+              onToggleLike={() => toggleLike(index)} 
+            />
+          </View>
+          
+          {/* Add long press overlay for the heart */}
           <Pressable 
-            style={styles.button} 
-            onPress={handleHeartPress}
-            onLongPress={handleHeartLongPressIn}
-            onPressOut={handleHeartLongPressOut}
-            delayLongPress={200}
-            android_ripple={{ color: 'rgba(0,0,0,0.1)', radius: 20, borderless: true }}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-          >
-            <Animated.View style={{ 
-              transform: [{ scale: isLongPressing ? longPressScale : heartScale }],
-            }}>
-              {isLiked ? (
-                <HeartFilled width={33} height={33} />
-              ) : (
-                <Heart2 width={33} height={33} />
-              )}
-            </Animated.View>
-          </Pressable>
+            style={[
+              styles.longPressOverlay, 
+              { position: 'absolute', right: 0, zIndex: 998 }
+            ]}
+            onLongPress={() => handleLongPress(index)}
+            delayLongPress={300}
+          />
         </Animated.View>
 
         {/* Size Selection Circles */}
@@ -671,7 +673,16 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         </Animated.View>
       </Animated.View>
     );
-  }, [showSizeSelection, buttonsTranslateX, sizesTranslateX, imageHeightPercent, fadeAnim, pan, isAnimating, heartScale, longPressScale, isLongPressing]);
+  }, [
+    showSizeSelection, 
+    buttonsTranslateX, 
+    sizesTranslateX, 
+    imageHeightPercent, 
+    pan, 
+    swipeCard, 
+    handleLongPress, 
+    toggleLike
+  ]);
 
   // Fade in the entire page when component mounts
   useEffect(() => {
@@ -772,7 +783,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         
         {/* Render current card or show empty state */}
         {cards.length > 0 ? (
-          renderCard(cards[currentCardIndex])
+          renderCard(cards[currentCardIndex], currentCardIndex)
         ) : (
           <View style={styles.noCardsContainer}>
             <Text style={styles.noCardsText}>No cards available</Text>
@@ -949,6 +960,14 @@ const styles = StyleSheet.create({
   noCardsSubtext: {
     fontSize: 16,
     color: 'white',
+  },
+  longPressOverlay: {
+    width: 50,
+    height: 50,
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    zIndex: 998,
   },
 });
 

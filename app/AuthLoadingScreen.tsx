@@ -38,7 +38,7 @@ const AuthLoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
     });
     
     // Calculate the position to move the logo all the way to the navbar
-    const navbarPosition = -height*0.3;
+    const navbarPosition = -height*0.4;
     
     // Keep the background visible but fade the logo
     const fadeOutLogo = Animated.timing(fadeAnim, {
@@ -49,9 +49,10 @@ const AuthLoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
     });
     
     // Important: Fade out the background completely for a smooth transition
+    // Fade out background slightly slower to ensure smooth transition
     const fadeOutBg = Animated.timing(bgFadeAnim, {
       toValue: 0, // Completely fade out
-      duration: 800,
+      duration: 600, // Slightly longer duration to ensure WelcomeScreen is visible
       useNativeDriver: true,
       easing: Easing.linear,
     });
@@ -94,7 +95,11 @@ const AuthLoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
     <Animated.View 
       style={[
         styles.container, 
-        { opacity: bgFadeAnim }
+        { 
+          opacity: bgFadeAnim,
+          // Make sure background color has alpha for smooth transitions
+          backgroundColor: 'rgba(243, 230, 214, 1)' 
+        }
       ]}
     >
       <Animated.View
@@ -131,6 +136,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
+    position: 'absolute',
   },
   logoContainer: {
     alignItems: 'center',

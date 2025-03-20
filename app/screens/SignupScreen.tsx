@@ -15,11 +15,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as authStorage from '../authStorage';
+import Logo from '../assets/Logo.svg';
+import { Dimensions } from 'react-native';
+
+const { width, height } = Dimensions.get('window');
 
 interface SignupScreenProps {
   onSignup: () => void;
   onBack: () => void;
 }
+
+const LOGO_SIZE = Math.min(width, height) * 0.3; // 25% of the smallest dimension
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
   const [username, setUsername] = useState('');
@@ -149,7 +155,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 <Text style={styles.backButtonText}>← Back</Text>
               </TouchableOpacity>
               
-              <Text style={styles.headerText}>Create Account</Text>
+              <View 
+							style={styles.logoContainer}
+						>
+							<Logo width={LOGO_SIZE} height={LOGO_SIZE} />
+						</View>
               
               {errors.general ? (
                 <View style={styles.errorContainer}>
@@ -158,11 +168,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
               ) : null}
               
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Username</Text>
                 <TextInput
                   style={[styles.input, errors.username ? styles.inputError : null]}
-                  placeholder="Enter your username"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
+                  placeholder="Ник"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
                   autoCapitalize="none"
                   value={username}
                   onChangeText={setUsername}
@@ -173,11 +182,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
               </View>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email</Text>
                 <TextInput
                   style={[styles.input, errors.email ? styles.inputError : null]}
-                  placeholder="Enter your email"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
+                  placeholder="Email"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
                   autoCapitalize="none"
                   autoComplete="email"
                   keyboardType="email-address"
@@ -190,11 +198,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
               </View>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Password</Text>
                 <TextInput
                   style={[styles.input, errors.password ? styles.inputError : null]}
-                  placeholder="Enter your password"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
+                  placeholder="Пароль"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
                   secureTextEntry
                   value={password}
                   onChangeText={setPassword}
@@ -205,11 +212,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
               </View>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Confirm Password</Text>
                 <TextInput
                   style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
-                  placeholder="Confirm your password"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
+                  placeholder="Повторите пароль"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
                   secureTextEntry
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -227,7 +233,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.signupButtonText}>Create Account</Text>
+                  <Text style={styles.signupButtonText}>Зарегистрироваться</Text>
                 )}
               </TouchableOpacity>
               
@@ -264,16 +270,16 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 30,
+    height: '100%',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 41,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowRadius: 4,
+    elevation: 6,
+    justifyContent: 'center',
   },
   backButton: {
     position: 'absolute',
@@ -284,7 +290,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontFamily: 'REM',
     fontSize: 16,
-    color: 'white',
+    color: '#000',
   },
   headerText: {
     fontFamily: 'IgraSans',
@@ -295,24 +301,20 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontFamily: 'REM',
-    fontSize: 14,
-    color: 'white',
-    marginBottom: 6,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(154, 125, 97, 0.2)',
+    borderRadius: 41,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontFamily: 'REM',
-    fontSize: 16,
-    color: '#4A3120',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 20,
+    fontFamily: 'IgraSans',
+    fontSize: 14,
   },
   inputError: {
     borderColor: 'rgba(255, 100, 100, 0.7)',
@@ -336,24 +338,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   signupButton: {
-    backgroundColor: 'rgba(205, 166, 122, 0.8)',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#4A3120',
+    borderRadius: 41,
+    paddingVertical: 22,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
   },
   signupButtonDisabled: {
     backgroundColor: 'rgba(205, 166, 122, 0.4)',
   },
   signupButtonText: {
     fontFamily: 'IgraSans',
-    fontSize: 18,
-    color: 'white',
+    fontSize: 20,
+    color: '#F2ECE7',
   },
   termsContainer: {
     marginTop: 20,
@@ -362,15 +364,20 @@ const styles = StyleSheet.create({
   termsText: {
     fontFamily: 'REM',
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(0, 0, 0, 0.8)',
     textAlign: 'center',
   },
   termsLink: {
     fontFamily: 'REM',
     fontSize: 12,
-    color: 'white',
+    color: '#000',
     textDecorationLine: 'underline',
   },
+  logoContainer: {
+		alignItems: 'center',
+		justifyContent: 'flex-start',
+    marginBottom: 30,
+	},
 });
 
 export default SignupScreen;
