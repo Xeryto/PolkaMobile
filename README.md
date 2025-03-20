@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/React%20Native-0.76-blue" alt="React Native" />
   <img src="https://img.shields.io/badge/Expo-52.0-blueviolet" alt="Expo" />
   <img src="https://img.shields.io/badge/TypeScript-5.3-3178C6" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
+  <img src="https://img.shields.io/badge/License-Custom%20Non--Commercial-red" alt="License" />
 </p>
 
 ## ✨ Features
@@ -182,11 +182,18 @@ The shopping cart system features:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under a Custom Non-Commercial License - see the [LICENSE](LICENSE) file for details. 
+
+**Key points:**
+- ✅ You may use, modify, and distribute this software for personal and educational purposes
+- ❌ Commercial use is strictly prohibited without explicit permission
+- ❌ Selling or sublicensing this software or derivatives is not allowed
+
+For commercial licensing inquiries, please contact the repository owner.
 
 ## 👥 Contributors
 
-- [Your Name](https://github.com/yourusername) - Developer
+  - [Daniel Igoshin](https://github.com/Xeryto) - Developer
 
 ---
 
