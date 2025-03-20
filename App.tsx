@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as Font from 'expo-font';
-//import { StatusBar } from 'expo-status-bar';
-import { Platform, StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing } from 'react-native';
+import { StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MainPage from './app/MainPage';
 import CartPage from './app/Cart';
@@ -14,6 +13,7 @@ import WelcomeScreen from './app/screens/WelcomeScreen';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as authStorage from './app/authStorage';
+import * as cartStorage from './app/cartStorage';
 
 import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
 import Search from './app/assets/Search.svg'; // Adjust the path as needed
@@ -21,59 +21,20 @@ import Logo from './app/assets/Logo.svg'; // Adjust the path as needed
 import Heart from './app/assets/Heart.svg'; // Adjust the path as needed
 import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
 
-// Define types for cart items and global cart storage
-interface CartItem {
-  id: number;
-  name: string;
-  price: string;
-  image: any;
-  size: string;
-  quantity: number;
-}
-
-// Initialize global cart storage
-// This allows any component to access the cart directly
-global.cartStorage = {
-  items: [],
-  
-  // Add item to cart (handle duplicates with same size)
-  addItem(item: CartItem) {
-    // Check if item with same id AND size already exists
-    const existingItemIndex = this.items.findIndex(
-      i => i.id === item.id && i.size === item.size
-    );
-    
-    if (existingItemIndex >= 0) {
-      // Item with same id and size exists, increase quantity
-      this.items[existingItemIndex].quantity += item.quantity;
-      console.log('Cart - Increased quantity for existing item:', this.items[existingItemIndex]);
-    } else {
-      // New item, add to cart
-      this.items.push(item);
-      console.log('Cart - Added new item to cart:', item);
-    }
-  },
-  
-  // Remove item from cart
-  removeItem(id: number) {
-    this.items = this.items.filter(item => item.id !== id);
-    console.log('Cart - Removed item with id:', id);
-  },
-  
-  // Update quantity of an item
-  updateQuantity(id: number, change: number) {
-    const itemIndex = this.items.findIndex(item => item.id === id);
-    if (itemIndex >= 0) {
-      this.items[itemIndex].quantity = Math.max(1, this.items[itemIndex].quantity + change);
-      console.log('Cart - Updated quantity for item:', this.items[itemIndex]);
-    }
-  },
-  
-  // Get all items in cart
-  getItems() {
-    return this.items;
+// Extend global namespace for cart storage
+declare global {
+  interface CartItem {
+    id: number;
+    name: string;
+    price: string;
+    image: any;
+    size: string;
+    quantity: number;
+    isLiked?: boolean;
   }
-};
+  
+  var cartStorage: cartStorage.CartStorage;
+}
 
 // Define types for improved navigation
 type ScreenName = 'Home' | 'Cart' | 'Search' | 'Favorites' | 'Settings';
@@ -110,6 +71,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('Home');
   const [previousScreen, setPreviousScreen] = useState<ScreenName | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [cartInitialized, setCartInitialized] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -129,6 +91,29 @@ export default function App() {
     Favorites: {},
     Settings: {}
   });
+
+  // Initialize cart from storage
+  useEffect(() => {
+    const initCart = async () => {
+      try {
+        // Initialize cart from persistent storage
+        const savedItems = await cartStorage.initializeCart();
+        
+        // Create cart storage with saved items
+        global.cartStorage = cartStorage.createCartStorage(savedItems);
+        
+        setCartInitialized(true);
+        console.log('App - Cart initialized from storage with items:', savedItems.length);
+      } catch (error) {
+        console.error('Error initializing cart:', error);
+        // Fallback to empty cart
+        global.cartStorage = cartStorage.createCartStorage([]);
+        setCartInitialized(true);
+      }
+    };
+
+    initCart();
+  }, []);
 
   // Check if user is logged in on app start
   useEffect(() => {
@@ -191,19 +176,19 @@ export default function App() {
   };
 
   const handleAuthLoadingFinish = () => {
-    // Use a slight delay to ensure animations complete smoothly
-    setTimeout(() => {
-      setShowAuthLoading(false);
-    }, 100);
+    // Hide the auth loading screen
+    setShowAuthLoading(false);
+    console.log('Auth loading screen finished, hiding it');
   };
 
   const handleLogin = () => {
-    // First set the logged in state
+    console.log('Login initiated');
+    // We don't need to immediately hide the auth loading screen
+    // Instead, update logged in state and let the auth loading animation finish naturally
+    // This prevents white flashing
     setIsLoggedIn(true);
-    // Make sure auth loading screen is hidden
-    setShowAuthLoading(false);
-    // Show the main app loading screen
     setShowLoading(true);
+    console.log('Login completed, showing main loading screen');
   };
 
   const handleRegister = () => {
@@ -214,11 +199,24 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // Clear cart data when logging out
+      await cartStorage.clearCart();
+      
+      // Reset cart to empty
+      global.cartStorage = cartStorage.createCartStorage([]);
+      
+      // Log out from authentication storage
       await authStorage.logout();
-      // Reset all loading states to ensure proper flow
-      setShowLoading(false);
+      
+      // First show the auth loading screen before setting isLoggedIn to false
+      // This ensures a smooth transition between states
       setShowAuthLoading(true);
-      setIsLoggedIn(false);
+      
+      // Small delay to ensure auth loading screen is visible before changing logged in state
+      setTimeout(() => {
+        setIsLoggedIn(false);
+        console.log('App - User logged out, cart cleared');
+      }, 50);
     } catch (error) {
       console.error('Error logging out:', error);
     }
@@ -343,7 +341,7 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <GestureHandlerRootView style={{flex: 1}}>
-        {/* Always render WelcomeScreen in the background */}
+        {/* Always render WelcomeScreen as the base layer */}
         <WelcomeScreen onLogin={handleLogin} onRegister={handleRegister} />
         
         {/* Overlay the AuthLoadingScreen on top while it's active */}

@@ -705,9 +705,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Igra Sans',
     fontSize: 38,
     color: '#73706D',
-    textAlign: 'center',
+    textAlign: 'left',
     marginTop: 20,
     marginBottom: 10,
+    marginLeft: 25,
   },
   cancelButtonContainer: {
     marginRight: -15,
