@@ -186,7 +186,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 👥 Contributors
 
-- [Your Name](https://github.com/yourusername) - Developer
+  - [Daniel Igoshin](https://github.com/Xeryto) - Developer
 
 ---
 
