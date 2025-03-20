@@ -16,10 +16,13 @@ import Logo from '../assets/Logo.svg';
 import * as authStorage from '../authStorage';
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
+import ConfirmationScreen from './ConfirmationScreen';
+import BrandSearchScreen from './BrandSearchScreen';
+import StylesSelectionScreen from './StylesSelectionScreen';
 
 interface WelcomeScreenProps {
 	onLogin: () => void;
-	onRegister: () => void;
+	onRegister: (stylePreference?: 'option1' | 'option2', selectedBrands?: string[], favoriteStyles?: string[]) => void;
 }
 
 const { width, height } = Dimensions.get('window');
@@ -28,6 +31,11 @@ const LOGO_SIZE = Math.min(width, height) * 0.25; // 25% of the smallest dimensi
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) => {
 	const [showLoginScreen, setShowLoginScreen] = useState(false);
 	const [showSignupScreen, setShowSignupScreen] = useState(false);
+	const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
+	const [showBrandSearchScreen, setShowBrandSearchScreen] = useState(false);
+	const [showStylesSelectionScreen, setShowStylesSelectionScreen] = useState(false);
+	const [selectedStylePreference, setSelectedStylePreference] = useState<'option1' | 'option2'>('option1');
+	const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
 	const [isReady, setIsReady] = useState(false);
 	const [isSpinning, setIsSpinning] = useState(false);
 	
@@ -106,9 +114,35 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 		onLogin();
 	};
 	
-	// Handle successful registration
+	// Handle successful signup - show confirmation screen instead of immediately registering
 	const handleSuccessfulSignup = () => {
-		onRegister();
+		setShowSignupScreen(false);
+		setShowConfirmationScreen(true);
+	};
+	
+	// Handle confirmation screen completion and move to brand search
+	const handleConfirmationComplete = (choice: 'option1' | 'option2') => {
+		console.log(`User selected style preference: ${choice}`);
+		// Save the style preference and show brand search screen
+		setSelectedStylePreference(choice);
+		setShowConfirmationScreen(false);
+		setShowBrandSearchScreen(true);
+	};
+	
+	// Handle brand search completion and show styles selection
+	const handleBrandSearchComplete = (brands: string[]) => {
+		console.log(`User selected brands: ${brands.join(', ')}`);
+		// Save the selected brands and show styles selection screen
+		setSelectedBrands(brands);
+		setShowBrandSearchScreen(false);
+		setShowStylesSelectionScreen(true);
+	};
+	
+	// Handle styles selection completion and register the user
+	const handleStylesSelectionComplete = (styles: string[]) => {
+		console.log(`User selected styles: ${styles.join(', ')}`);
+		// Pass style preference, selected brands, and favorite styles to onRegister
+		onRegister(selectedStylePreference, selectedBrands, styles);
 	};
 	
 	// If showing login screen
@@ -127,6 +161,35 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 			<SignupScreen 
 				onSignup={handleSuccessfulSignup} 
 				onBack={handleBackPress} 
+			/>
+		);
+	}
+	
+	// If showing confirmation screen
+	if (showConfirmationScreen) {
+		return (
+			<ConfirmationScreen 
+				onComplete={handleConfirmationComplete} 
+			/>
+		);
+	}
+	
+	// If showing brand search screen
+	if (showBrandSearchScreen) {
+		return (
+			<BrandSearchScreen 
+				onComplete={handleBrandSearchComplete}
+				stylePreference={selectedStylePreference}
+			/>
+		);
+	}
+	
+	// If showing styles selection screen
+	if (showStylesSelectionScreen) {
+		return (
+			<StylesSelectionScreen 
+				onComplete={handleStylesSelectionComplete}
+				stylePreference={selectedStylePreference}
 			/>
 		);
 	}
@@ -156,7 +219,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 						
 						<Animated.View 
 							entering={FadeIn.duration(800).delay(200)}
-							style={{justifyContent: 'center'}}
+							style={styles.shadowWrap}
 						>
 							{/* Container for the button - this stays still */}
 							<View style={styles.registerButtonContainer}>
@@ -194,8 +257,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 									>
 										<LinearGradient
 											colors={['#E222F0', '#4747E4', '#E66D7B']}
-											start={{ x: 0, y: 0 }}
-											end={{ x: 1, y: 1 }}
+											locations={[0.15, 0.56, 1]}
+											start={{ x: 0.48, y: 1 }}
+											end={{ x: 0.52, y: 0 }}
 											style={styles.registerButtonGradient}
 										>
 											<Text style={styles.registerButtonText}>Прикоснись к AI</Text>
@@ -243,21 +307,31 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		alignItems: 'center',
 		paddingVertical: 30,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.25,
+		shadowRadius: 4,
+		elevation: 5,
 	},
 	logoContainer: {
 		alignItems: 'center',
 		justifyContent: 'flex-start',
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.25,
+		shadowRadius: 8,
+		elevation: 8,
 	},
 	registerButtonContainer: {
 		width: 300, // Fixed width to ensure consistent size
 		height: 80, // Fixed height for the button
 		borderRadius: 41,
 		overflow: 'hidden',
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.35,
-		shadowRadius: 8,
-		elevation: 8,
+		...Platform.select({
+			android: {
+				elevation: 8,
+			}
+		}),
 		position: 'relative',
 	},
 	registerButtonBorder: {
@@ -275,6 +349,7 @@ const styles = StyleSheet.create({
 		borderRadius: 38, // Slightly smaller to create border effect
 		alignItems: 'center',
 		justifyContent: 'center',
+		opacity: 0.8,
 	},
 	registerButtonText: {
 		fontFamily: 'IgraSans',
@@ -290,8 +365,11 @@ const styles = StyleSheet.create({
 	loginText: {
 		fontFamily: 'IgraSans',
 		fontSize: 15,
-		color: 'rgba(0, 0, 0, 0.48)',
+		color: '#787878',
 		marginBottom: 10,
+		textShadowColor: 'rgba(0, 0, 0, 0.15)',
+		textShadowOffset: { width: 1, height: 1 },
+		textShadowRadius: 3,
 	},
 	loginButton: {
 		backgroundColor: '#9A7859',
@@ -301,14 +379,25 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		shadowColor: '#000',
 		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.15,
+		shadowOpacity: 0.25,
 		shadowRadius: 4,
-		elevation: 3,
+		elevation: 5,
 	},
 	loginButtonText: {
 		fontFamily: 'IgraSans',
 		fontSize: 15,
 		color: '#E0D6CC',
+		textShadowColor: 'rgba(0, 0, 0, 0.15)',
+		textShadowOffset: { width: 1, height: 1 },
+		textShadowRadius: 3,
+	},
+	shadowWrap: {
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.25,
+		shadowRadius: 4,
+		elevation: 5,
+		justifyContent: 'center',
 	},
 });
 

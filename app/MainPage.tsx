@@ -380,17 +380,6 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     
     console.log(`toggleLike - Updated card ${card.id} like status to: ${newLikedStatus}`);
   }, [cards]);
-
-  // Modified heart animation with haptic feedback and API call
-  const animateHeart = useCallback((currentCardIndex: number) => {
-    console.log(`animateHeart - Called with card index: ${currentCardIndex}`);
-    
-    // Just toggle the like status - animation is handled by the HeartButton component
-    toggleLike(currentCardIndex);
-  }, [toggleLike]);
-
-  // Add this new handler for direct click instead of long press
-  const [longPressingCardIndex, setLongPressingCardIndex] = useState<number | null>(null);
   
   const handleLongPress = useCallback((index: number) => {
     console.log(`handleLongPress - Long press on card ${index}`);

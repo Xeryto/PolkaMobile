@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   poweredByText: {
-    fontFamily: 'REM',
+    fontFamily: 'IgraSans',
     fontSize: 13,
     color: '#4A3120',
     marginTop: 20,

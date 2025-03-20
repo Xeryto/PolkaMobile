@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  Pressable, 
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -16,6 +15,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as authStorage from '../authStorage';
+import Logo from '../assets/Logo.svg';
+import VK from '../assets/VK.svg';
+import { Dimensions } from 'react-native';
+import * as api from '../services/api';
+
+const { width, height } = Dimensions.get('window');
+
+const LOGO_SIZE = Math.min(width, height) * 0.3; // 25% of the smallest dimension
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -63,28 +70,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
     setIsLoading(true);
     
     try {
-      // In a real app, you would make an API call here
-      // For demo purposes, we'll simulate a successful login after a delay
-      setTimeout(async () => {
-        // Simulating user data
-        const userData = {
-          id: '1',
-          name: usernameOrEmail.includes('@') ? usernameOrEmail.split('@')[0] : usernameOrEmail,
-          email: usernameOrEmail.includes('@') ? usernameOrEmail : `${usernameOrEmail}@example.com`,
-        };
-        
-        // Store auth data
-        await authStorage.login('fake-token-123', userData);
-        
-        setIsLoading(false);
-        onLogin(); // Notify parent component
-      }, 1500);
+      // Use the simulated API for development
+      // Determine if input is email or username
+      const isEmail = usernameOrEmail.includes('@');
+      const email = isEmail ? usernameOrEmail : `${usernameOrEmail}@example.com`;
       
+      const response = await api.simulateLogin(email, password);
+      
+      setIsLoading(false);
+      onLogin(); // Notify parent component
     } catch (error) {
       setIsLoading(false);
+      
+      let errorMessage = 'Login failed. Please check your credentials and try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       setErrors({
         ...errors,
-        general: 'Login failed. Please check your credentials and try again.'
+        general: errorMessage
       });
     }
   };
@@ -122,7 +127,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
                 <Text style={styles.backButtonText}>← Back</Text>
               </TouchableOpacity>
               
-              <Text style={styles.headerText}>Log In</Text>
+              <View 
+							style={styles.logoContainer}>
+							  <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
+						  </View>
               
               {errors.general ? (
                 <View style={styles.errorContainer}>
@@ -130,33 +138,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
                 </View>
               ) : null}
               
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Username or Email</Text>
-                <TextInput
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
                   style={[styles.input, errors.usernameOrEmail ? styles.inputError : null]}
-                  placeholder="Enter your username or email"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  keyboardType="email-address"
+                  placeholder="Ник/Email"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
                   value={usernameOrEmail}
                   onChangeText={setUsernameOrEmail}
-                />
-                {errors.usernameOrEmail ? (
+                  />
+              </View>
+              {errors.usernameOrEmail ? (
                   <Text style={styles.errorText}>{errors.usernameOrEmail}</Text>
                 ) : null}
               </View>
               
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <TextInput
-                  style={[styles.input, errors.password ? styles.inputError : null]}
-                  placeholder="Enter your password"
-                  placeholderTextColor="rgba(105, 70, 47, 0.5)"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, errors.password ? styles.inputError : null]}
+                    placeholder="Пароль"
+                    placeholderTextColor="rgba(0, 0, 0, 1)"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
                 {errors.password ? (
                   <Text style={styles.errorText}>{errors.password}</Text>
                 ) : null}
@@ -170,13 +180,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Log In</Text>
+                  <Text style={styles.loginButtonText}>Войти</Text>
                 )}
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.forgotPasswordButton}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
+              <View style={styles.socialContainer}>
+                <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
+                  <VK width={30} height={30} />
+                </TouchableOpacity>
+              </View>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -202,16 +217,17 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 30,
+    height: '100%',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 41,
     padding: 24,
+    justifyContent: 'flex-end',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowRadius: 4,
     elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    //overflow: 'hidden',
   },
   backButton: {
     position: 'absolute',
@@ -222,38 +238,41 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontFamily: 'REM',
     fontSize: 16,
-    color: 'white',
-  },
-  headerText: {
-    fontFamily: 'IgraSans',
-    fontSize: 32,
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 30,
-    marginTop: 20,
+    color: '#000',
   },
   inputContainer: {
+    borderRadius: 41,
+    overflow: 'hidden',
+    backgroundColor: '#E0D6CC'
+  },
+  inputShadow: {
+    borderRadius: 41,
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
     marginBottom: 20,
   },
-  inputLabel: {
-    fontFamily: 'REM',
-    fontSize: 14,
-    color: 'white',
-    marginBottom: 6,
-  },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 12,
+    borderRadius: 41,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontFamily: 'REM',
-    fontSize: 16,
-    color: '#4A3120',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 20,
+    fontFamily: 'IgraSans',
+    fontSize: 14,
+    ...Platform.select({
+      android: {
+        overflow: 'hidden',
+      },
+    }),
   },
   inputError: {
     borderColor: 'rgba(255, 100, 100, 0.7)',
+    borderWidth: 1,
   },
   errorText: {
     fontFamily: 'REM',
@@ -274,24 +293,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   loginButton: {
-    backgroundColor: 'rgba(205, 166, 122, 0.8)',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#4A3120',
+    borderRadius: 41,
+    paddingVertical: 22,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 5,
   },
   loginButtonDisabled: {
     backgroundColor: 'rgba(205, 166, 122, 0.4)',
   },
   loginButtonText: {
     fontFamily: 'IgraSans',
-    fontSize: 18,
-    color: 'white',
+    fontSize: 20,
+    color: '#F2ECE7',
   },
   forgotPasswordButton: {
     alignSelf: 'center',
@@ -299,9 +318,47 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontFamily: 'REM',
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    color: '#000',
+    textDecorationLine: 'underline',
+  },
+  logoContainer: {
+		alignItems: 'center',
+		justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
+    position: 'absolute',
+    top: height * 0.11,
+    left: width / 2 - LOGO_SIZE / 2,
+    right: width / 2 - LOGO_SIZE / 2,
+	},
+  socialContainer: {
+    marginTop: 20,
+    //marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vkButton: {
+    width: 69,
+    height: 69,
+    borderRadius: 41,
+    backgroundColor: '#E0D6CC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    //overflow: 'hidden',
   },
 });
 
-export default LoginScreen; 
+export default LoginScreen;

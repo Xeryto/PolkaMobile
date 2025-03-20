@@ -182,9 +182,10 @@ The shopping cart system features:
 
 ## 📄 License
 
-This project is licensed under a Custom Non-Commercial License - see the [LICENSE](LICENSE) file for details. 
+This project is licensed under a Custom Non-Commercial License - see the [LICENSE](LICENSE) file for details.
 
 **Key points:**
+
 - ✅ You may use, modify, and distribute this software for personal and educational purposes
 - ❌ Commercial use is strictly prohibited without explicit permission
 - ❌ Selling or sublicensing this software or derivatives is not allowed
@@ -193,7 +194,7 @@ For commercial licensing inquiries, please contact the repository owner.
 
 ## 👥 Contributors
 
-  - [Daniel Igoshin](https://github.com/Xeryto) - Developer
+- [Daniel Igoshin](https://github.com/Xeryto) - Developer
 
 ---
 

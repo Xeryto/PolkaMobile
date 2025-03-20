@@ -16,7 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as authStorage from '../authStorage';
 import Logo from '../assets/Logo.svg';
+import VK from '../assets/VK.svg';
 import { Dimensions } from 'react-native';
+import * as api from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -96,28 +98,22 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
     setIsLoading(true);
     
     try {
-      // In a real app, you would make an API call here
-      // For demo purposes, we'll simulate a successful registration after a delay
-      setTimeout(async () => {
-        // Simulating user data
-        const userData = {
-          id: '1',
-          name: username,
-          email: email,
-        };
-        
-        // Store auth data
-        await authStorage.login('fake-token-123', userData);
-        
-        setIsLoading(false);
-        onSignup(); // Notify parent component
-      }, 1500);
+      // Use the simulated API for development
+      const response = await api.simulateRegister(username, email, password);
       
+      setIsLoading(false);
+      onSignup(); // Notify parent component
     } catch (error) {
       setIsLoading(false);
+      
+      let errorMessage = 'Registration failed. Please try again later.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       setErrors({
         ...errors,
-        general: 'Registration failed. Please try again later.'
+        general: errorMessage
       });
     }
   };
@@ -167,59 +163,67 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 </View>
               ) : null}
               
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, errors.username ? styles.inputError : null]}
-                  placeholder="Ник"
-                  placeholderTextColor="rgba(0, 0, 0, 1)"
-                  autoCapitalize="none"
-                  value={username}
-                  onChangeText={setUsername}
-                />
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, errors.username ? styles.inputError : null]}
+                    placeholder="Ник"
+                    placeholderTextColor="rgba(0, 0, 0, 1)"
+                    autoCapitalize="none"
+                    value={username}
+                    onChangeText={setUsername}
+                  />
+                </View>
                 {errors.username ? (
                   <Text style={styles.errorText}>{errors.username}</Text>
                 ) : null}
               </View>
               
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, errors.email ? styles.inputError : null]}
-                  placeholder="Email"
-                  placeholderTextColor="rgba(0, 0, 0, 1)"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                />
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, errors.email ? styles.inputError : null]}
+                    placeholder="Email"
+                    placeholderTextColor="rgba(0, 0, 0, 1)"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
                 {errors.email ? (
                   <Text style={styles.errorText}>{errors.email}</Text>
                 ) : null}
               </View>
               
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, errors.password ? styles.inputError : null]}
-                  placeholder="Пароль"
-                  placeholderTextColor="rgba(0, 0, 0, 1)"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, errors.password ? styles.inputError : null]}
+                    placeholder="Пароль"
+                    placeholderTextColor="rgba(0, 0, 0, 1)"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
                 {errors.password ? (
                   <Text style={styles.errorText}>{errors.password}</Text>
                 ) : null}
               </View>
               
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
-                  placeholder="Повторите пароль"
-                  placeholderTextColor="rgba(0, 0, 0, 1)"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
+              <View style={styles.inputShadow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
+                    placeholder="Повторите пароль"
+                    placeholderTextColor="rgba(0, 0, 0, 1)"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                </View>
                 {errors.confirmPassword ? (
                   <Text style={styles.errorText}>{errors.confirmPassword}</Text>
                 ) : null}
@@ -236,6 +240,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                   <Text style={styles.signupButtonText}>Зарегистрироваться</Text>
                 )}
               </TouchableOpacity>
+              
+              <View style={styles.socialContainer}>
+                <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
+                  <VK width={30} height={30} />
+                </TouchableOpacity>
+              </View>
               
               <View style={styles.termsContainer}>
                 <Text style={styles.termsText}>
@@ -274,12 +284,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
     padding: 24,
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 6,
-    justifyContent: 'center',
+    elevation: 5,
+    //overflow: 'hidden',
   },
   backButton: {
     position: 'absolute',
@@ -292,32 +303,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
-  headerText: {
-    fontFamily: 'IgraSans',
-    fontSize: 32,
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 30,
-    marginTop: 20,
-  },
   inputContainer: {
-    marginBottom: 10,
+    borderRadius: 41,
+    overflow: 'hidden',
+    backgroundColor: '#E0D6CC'
+  },
+  inputShadow: {
+    borderRadius: 41,
+    backgroundColor: 'transparent',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 8,
+    marginBottom: 20,
   },
   input: {
-    backgroundColor: 'rgba(154, 125, 97, 0.2)',
     borderRadius: 41,
     paddingHorizontal: 16,
     paddingVertical: 20,
     fontFamily: 'IgraSans',
     fontSize: 14,
+    ...Platform.select({
+      android: {
+        overflow: 'hidden',
+      },
+    }),
   },
   inputError: {
     borderColor: 'rgba(255, 100, 100, 0.7)',
+    borderWidth: 1,
   },
   errorText: {
     fontFamily: 'REM',
@@ -347,7 +365,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 5,
   },
   signupButtonDisabled: {
     backgroundColor: 'rgba(205, 166, 122, 0.4)',
@@ -377,7 +395,36 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'flex-start',
     marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
 	},
+  socialContainer: {
+    marginTop: 20,
+    //marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vkButton: {
+    width: 69,
+    height: 69,
+    borderRadius: 41,
+    backgroundColor: '#E0D6CC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    //overflow: 'hidden',
+  },
 });
 
 export default SignupScreen;

@@ -10,10 +10,14 @@ import SettingsPage from './app/Settings';
 import LoadingScreen from './app/LoadingScreen';
 import AuthLoadingScreen from './app/AuthLoadingScreen';
 import WelcomeScreen from './app/screens/WelcomeScreen';
+import ConfirmationScreen from './app/screens/ConfirmationScreen';
+import BrandSearchScreen from './app/screens/BrandSearchScreen';
+import StylesSelectionScreen from './app/screens/StylesSelectionScreen';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as authStorage from './app/authStorage';
 import * as cartStorage from './app/cartStorage';
+import * as api from './app/services/api';
 
 import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
 import Search from './app/assets/Search.svg'; // Adjust the path as needed
@@ -68,10 +72,20 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null means "checking"
   const [showLoading, setShowLoading] = useState(true);
   const [showAuthLoading, setShowAuthLoading] = useState(false);
+  
+  // Profile completion states
+  const [profileCompletionStatus, setProfileCompletionStatus] = useState<api.ProfileCompletionStatus | null>(null);
+  const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
+  const [showBrandSearchScreen, setShowBrandSearchScreen] = useState(false);
+  const [showStylesSelectionScreen, setShowStylesSelectionScreen] = useState(false);
+  const [stylePreference, setStylePreference] = useState<'option1' | 'option2' | null>(null);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('Home');
   const [previousScreen, setPreviousScreen] = useState<ScreenName | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [cartInitialized, setCartInitialized] = useState(false);
+  const [comingFromSignup, setComingFromSignup] = useState(false); // Track if user is coming from signup
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -115,15 +129,69 @@ export default function App() {
     initCart();
   }, []);
 
-  // Check if user is logged in on app start
+  // Check if user is logged in and profile completion status on app start
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkAuthAndProfileStatus = async () => {
       try {
-        const loggedIn = await authStorage.isLoggedIn();
-        setIsLoggedIn(loggedIn);
-        // If not logged in, show auth loading screen
-        if (!loggedIn) {
+        console.log('Checking authentication and profile status...');
+        
+        // First, initialize the simulated user if we're in development mode
+        await api.initSimulatedUser();
+        
+        // Check if session is valid
+        const session = await api.getSession();
+        
+        if (!session.isValid) {
+          // Session invalid or expired, show welcome screen
+          console.log('Session invalid or expired, showing welcome screen');
+          setIsLoggedIn(false);
           setShowAuthLoading(true);
+          return;
+        }
+        
+        console.log('Session valid, checking profile completion status');
+        
+        // Session valid, get profile completion status
+        try {
+          const completionStatus = await api.simulateGetProfileCompletionStatus();
+          setProfileCompletionStatus(completionStatus);
+          
+          console.log('Profile completion status:', JSON.stringify(completionStatus));
+          
+          if (!completionStatus.isComplete) {
+            // Profile is incomplete, determine which screen to show
+            console.log('Profile incomplete, required screens:', completionStatus.requiredScreens);
+            
+            if (completionStatus.requiredScreens.includes('confirmation')) {
+              setShowConfirmationScreen(true);
+            } else if (completionStatus.requiredScreens.includes('brands')) {
+              setStylePreference(await getUserStylePreference());
+              setShowBrandSearchScreen(true);
+            } else if (completionStatus.requiredScreens.includes('styles')) {
+              setStylePreference(await getUserStylePreference());
+              setSelectedBrands(await getUserSelectedBrands());
+              setShowStylesSelectionScreen(true);
+            }
+          }
+          
+          // User is logged in regardless of profile completion
+          setIsLoggedIn(true);
+          
+          // Show loading screen for returning users with complete profiles
+          if (completionStatus.isComplete) {
+            console.log('Profile complete, showing loading screen for returning user');
+            setComingFromSignup(false);
+            setShowLoading(true);
+          } else {
+            // For users with incomplete profiles, skip loading
+            console.log('Profile incomplete, skipping loading screen');
+            setComingFromSignup(true);
+          }
+        } catch (error) {
+          console.error('Error checking profile completion:', error);
+          // If error fetching profile status, assume logged in but show loading
+          setIsLoggedIn(true);
+          setShowLoading(true);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -132,8 +200,30 @@ export default function App() {
       }
     };
 
-    checkAuthStatus();
+    checkAuthAndProfileStatus();
   }, []);
+  
+  // Helper function to get user style preference
+  const getUserStylePreference = async (): Promise<'option1' | 'option2'> => {
+    try {
+      const user = await api.simulateGetCurrentUser();
+      return user.stylePreference || 'option1';
+    } catch (error) {
+      console.error('Error getting user style preference:', error);
+      return 'option1'; // Default to option1 if error
+    }
+  };
+  
+  // Helper function to get user selected brands
+  const getUserSelectedBrands = async (): Promise<string[]> => {
+    try {
+      const user = await api.simulateGetCurrentUser();
+      return user.selectedBrands || [];
+    } catch (error) {
+      console.error('Error getting user selected brands:', error);
+      return []; // Default to empty array if error
+    }
+  };
 
   // Start the glow animation
   useEffect(() => {
@@ -181,20 +271,100 @@ export default function App() {
     console.log('Auth loading screen finished, hiding it');
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     console.log('Login initiated');
-    // We don't need to immediately hide the auth loading screen
-    // Instead, update logged in state and let the auth loading animation finish naturally
-    // This prevents white flashing
-    setIsLoggedIn(true);
-    setShowLoading(true);
-    console.log('Login completed, showing main loading screen');
+    
+    // Check profile completion status after login
+    try {
+      const completionStatus = await api.simulateGetProfileCompletionStatus();
+      setProfileCompletionStatus(completionStatus);
+      
+      // Update logged in state
+      setIsLoggedIn(true);
+      
+      if (!completionStatus.isComplete) {
+        // Profile is incomplete, determine which screen to show
+        console.log('Login: Profile incomplete, required screens:', completionStatus.requiredScreens);
+        setComingFromSignup(true);
+        
+        if (completionStatus.requiredScreens.includes('confirmation')) {
+          setShowConfirmationScreen(true);
+          return;
+        } else if (completionStatus.requiredScreens.includes('brands')) {
+          setStylePreference(await getUserStylePreference());
+          setShowBrandSearchScreen(true);
+          return;
+        } else if (completionStatus.requiredScreens.includes('styles')) {
+          setStylePreference(await getUserStylePreference());
+          setSelectedBrands(await getUserSelectedBrands());
+          setShowStylesSelectionScreen(true);
+          return;
+        }
+      }
+      
+      // If profile is complete, show loading screen for normal login flow
+      console.log('Login: Profile complete, showing loading screen');
+      setComingFromSignup(false);
+      setShowLoading(true);
+    } catch (error) {
+      console.error('Error checking profile completion after login:', error);
+      // If error, proceed with normal login flow
+      setIsLoggedIn(true);
+      setComingFromSignup(false);
+      setShowLoading(true);
+    }
   };
 
-  const handleRegister = () => {
-    // In a real app, you would navigate to a registration screen
-    // For now, simulate a successful registration and login
-    handleLogin();
+  const handleRegister = async (
+    stylePreference?: 'option1' | 'option2', 
+    selectedBrands?: string[],
+    favoriteStyles?: string[]
+  ) => {
+    console.log('Registration completed with:');
+    console.log('- Style preference:', stylePreference || 'default');
+    console.log('- Selected brands:', selectedBrands?.length ? selectedBrands.join(', ') : 'none');
+    console.log('- Favorite styles:', favoriteStyles?.length ? favoriteStyles.join(', ') : 'none');
+    
+    // Ensure we're working with valid arrays even if undefined was passed
+    const brands = selectedBrands || [];
+    const styles = favoriteStyles || [];
+    
+    // Save user preferences to API
+    try {
+      if (stylePreference) {
+        await api.simulateUpdateStylePreference(stylePreference);
+      }
+      
+      if (brands.length > 0) {
+        await api.simulateUpdateSelectedBrands(brands);
+      }
+      
+      if (styles.length > 0) {
+        await api.simulateUpdateFavoriteStyles(styles);
+      }
+      
+      // Check if profile is now complete
+      const completionStatus = await api.simulateGetProfileCompletionStatus();
+      console.log('Register: Profile completion status after updates:', JSON.stringify(completionStatus));
+    } catch (error) {
+      console.error('Error updating user preferences:', error);
+    }
+    
+    // Store the user preferences in screenParams for the main page
+    setScreenParams(prev => ({
+      ...prev,
+      Home: {
+        ...prev.Home,
+        stylePreference,
+        selectedBrands: brands,
+        favoriteStyles: styles
+      }
+    }));
+    
+    // For new users coming from signup, skip the loading screen
+    setComingFromSignup(true);
+    setIsLoggedIn(true);
+    console.log('Skipping loading screen for new user');
   };
 
   const handleLogout = async () => {
@@ -205,12 +375,18 @@ export default function App() {
       // Reset cart to empty
       global.cartStorage = cartStorage.createCartStorage([]);
       
-      // Log out from authentication storage
-      await authStorage.logout();
+      // Log out from API
+      await api.simulateLogoutUser();
       
       // First show the auth loading screen before setting isLoggedIn to false
       // This ensures a smooth transition between states
       setShowAuthLoading(true);
+      
+      // Reset profile completion state
+      setProfileCompletionStatus(null);
+      setShowConfirmationScreen(false);
+      setShowBrandSearchScreen(false);
+      setShowStylesSelectionScreen(false);
       
       // Small delay to ensure auth loading screen is visible before changing logged in state
       setTimeout(() => {
@@ -219,6 +395,102 @@ export default function App() {
       }, 50);
     } catch (error) {
       console.error('Error logging out:', error);
+    }
+  };
+  
+  // Handle confirmation screen completion
+  const handleConfirmationComplete = async (choice: 'option1' | 'option2') => {
+    console.log(`User selected style preference: ${choice}`);
+    
+    // Save the style preference
+    setStylePreference(choice);
+    
+    try {
+      // Update the style preference in the API
+      await api.simulateUpdateStylePreference(choice);
+      
+      // Check if brands selection is needed
+      const completionStatus = await api.simulateGetProfileCompletionStatus();
+      
+      if (completionStatus.requiredScreens.includes('brands')) {
+        setShowConfirmationScreen(false);
+        setShowBrandSearchScreen(true);
+      } else if (completionStatus.requiredScreens.includes('styles')) {
+        setShowConfirmationScreen(false);
+        setShowStylesSelectionScreen(true);
+      } else {
+        // Profile is complete, go to main app
+        setShowConfirmationScreen(false);
+        // For users completing their profile, skip the loading screen
+        setComingFromSignup(true);
+      }
+    } catch (error) {
+      console.error('Error updating style preference:', error);
+      // In case of error, proceed to brands selection
+      setShowConfirmationScreen(false);
+      setShowBrandSearchScreen(true);
+    }
+  };
+  
+  // Handle brand search completion
+  const handleBrandSearchComplete = async (brands: string[]) => {
+    console.log(`User selected brands: ${brands.join(', ')}`);
+    
+    // Save the selected brands
+    setSelectedBrands(brands);
+    
+    try {
+      // Update the selected brands in the API
+      await api.simulateUpdateSelectedBrands(brands);
+      
+      // Check if styles selection is needed
+      const completionStatus = await api.simulateGetProfileCompletionStatus();
+      
+      if (completionStatus.requiredScreens.includes('styles')) {
+        setShowBrandSearchScreen(false);
+        setShowStylesSelectionScreen(true);
+      } else {
+        // Profile is complete, go to main app
+        setShowBrandSearchScreen(false);
+        // For users completing their profile, skip the loading screen
+        setComingFromSignup(true);
+      }
+    } catch (error) {
+      console.error('Error updating selected brands:', error);
+      // In case of error, proceed to styles selection
+      setShowBrandSearchScreen(false);
+      setShowStylesSelectionScreen(true);
+    }
+  };
+  
+  // Handle styles selection completion
+  const handleStylesSelectionComplete = async (styles: string[]) => {
+    console.log(`User selected styles: ${styles.join(', ')}`);
+    
+    try {
+      // Update the favorite styles in the API
+      await api.simulateUpdateFavoriteStyles(styles);
+      
+      // Store styles in screenParams for the main page
+      setScreenParams(prev => ({
+        ...prev,
+        Home: {
+          ...prev.Home,
+          stylePreference,
+          selectedBrands,
+          favoriteStyles: styles
+        }
+      }));
+      
+      // Complete profile flow
+      setShowStylesSelectionScreen(false);
+      // For users completing their profile, skip the loading screen
+      setComingFromSignup(true);
+    } catch (error) {
+      console.error('Error updating favorite styles:', error);
+      // Even in case of error, complete the profile flow
+      setShowStylesSelectionScreen(false);
+      setComingFromSignup(true);
     }
   };
 
@@ -351,8 +623,39 @@ export default function App() {
       </GestureHandlerRootView>
     );
   }
+  
+  // If logged in but profile is incomplete, show the appropriate completion screen
+  if (showConfirmationScreen) {
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        <ConfirmationScreen onComplete={handleConfirmationComplete} />
+      </GestureHandlerRootView>
+    );
+  }
+  
+  if (showBrandSearchScreen) {
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        <BrandSearchScreen 
+          onComplete={handleBrandSearchComplete}
+          stylePreference={stylePreference || 'option1'}
+        />
+      </GestureHandlerRootView>
+    );
+  }
+  
+  if (showStylesSelectionScreen) {
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        <StylesSelectionScreen 
+          onComplete={handleStylesSelectionComplete}
+          stylePreference={stylePreference || 'option1'}
+        />
+      </GestureHandlerRootView>
+    );
+  }
 
-  // User is logged in, show the main app
+  // User is logged in with complete profile, show the main app
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <LinearGradient
@@ -368,11 +671,13 @@ export default function App() {
         end={{ x: 1, y: 0.8 }}
       >
         <SafeAreaView style={styles.container}>
-          {/* Always render the main app */}
+          {/* Always render the main app with appropriate animation */}
           <Animated.View 
             style={[
               styles.screenContainer,
-              {opacity: fadeAnim, transform: [{translateY: slideAnim}]}
+              comingFromSignup 
+                ? {opacity: 1, transform: [{translateY: 0}]} // No animation when coming from signup
+                : {opacity: fadeAnim, transform: [{translateY: slideAnim}]} // Normal animation otherwise
             ]}
           >
             {currentScreen === 'Home' && <MainPage navigation={navigation} route={{ params: screenParams.Home }} />}
@@ -424,8 +729,8 @@ export default function App() {
             </NavButton>
           </View>
           
-          {/* Conditionally render the loading screen on top */}
-          {showLoading && (
+          {/* Conditionally render the loading screen on top only for returning users */}
+          {showLoading && !comingFromSignup && (
             <LoadingScreen onFinish={handleLoadingFinish} />
           )}
         </SafeAreaView>
