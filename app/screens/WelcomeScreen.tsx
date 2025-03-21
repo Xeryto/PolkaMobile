@@ -13,7 +13,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
-import * as authStorage from '../authStorage';
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
 import ConfirmationScreen from './ConfirmationScreen';

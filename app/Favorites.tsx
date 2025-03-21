@@ -718,7 +718,7 @@ const SearchContent = ({
   <>
     {/* Search Input */}
     <View style={styles.searchContainer}>
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <TextInput
           style={styles.searchInput}
           placeholder="Поиск"
@@ -956,11 +956,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     width: '88%',
     left: '6%',
-    minHeight: height*0.1,
+    height: height*0.1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -969,7 +967,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
     zIndex: 10,
-    position: 'absolute',
+    //position: 'absolute',
     top: Platform.OS === 'ios' ? height * 0.02 : height * 0.04,
   },
   searchInput: {
@@ -983,7 +981,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Platform.OS === 'ios' ? 45 : 50, // Smaller padding on Android
     backgroundColor: '#C8A688',
     borderRadius: 41,
-    paddingVertical: Platform.OS === 'ios' ? 34 : 27, // Smaller on Android
+    paddingVertical: Platform.OS === 'ios' ? 35 : 27, // Smaller on Android
+    marginRight: -1,
   },
   cancelButtonText: {
     fontFamily: 'Igra Sans',

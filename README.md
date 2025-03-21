@@ -119,7 +119,6 @@ polka-mobile/
 │   │   ├── WelcomeScreen.tsx  # Welcome/login/signup entry
 │   │   ├── LoginScreen.tsx    # User login screen
 │   │   └── SignupScreen.tsx   # User registration screen
-│   ├── authStorage.ts    # Authentication persistence
 │   ├── cartStorage.ts    # Cart data persistence
 │   ├── MainPage.tsx      # Product browsing screen
 │   ├── Cart.tsx          # Shopping cart screen

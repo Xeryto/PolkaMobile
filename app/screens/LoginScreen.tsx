@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import * as authStorage from '../authStorage';
 import Logo from '../assets/Logo.svg';
 import VK from '../assets/VK.svg';
 import { Dimensions } from 'react-native';
@@ -333,10 +332,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 8,
-    position: 'absolute',
-    top: height * 0.11,
-    left: width / 2 - LOGO_SIZE / 2,
-    right: width / 2 - LOGO_SIZE / 2,
+    marginBottom: 120,
 	},
   socialContainer: {
     marginTop: 20,

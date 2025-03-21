@@ -9,13 +9,13 @@ import FavoritesPage from './app/Favorites';
 import SettingsPage from './app/Settings';
 import LoadingScreen from './app/LoadingScreen';
 import AuthLoadingScreen from './app/AuthLoadingScreen';
+import SimpleAuthLoadingScreen from './app/SimpleAuthLoadingScreen';
 import WelcomeScreen from './app/screens/WelcomeScreen';
 import ConfirmationScreen from './app/screens/ConfirmationScreen';
 import BrandSearchScreen from './app/screens/BrandSearchScreen';
 import StylesSelectionScreen from './app/screens/StylesSelectionScreen';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as authStorage from './app/authStorage';
 import * as cartStorage from './app/cartStorage';
 import * as api from './app/services/api';
 
@@ -90,7 +90,6 @@ export default function App() {
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(1)).current; // Animation for the glow effect
   
   // Navigation event listeners
   const navigationListeners = useRef<Record<string, Set<NavigationListener>>>({
@@ -224,26 +223,6 @@ export default function App() {
       return []; // Default to empty array if error
     }
   };
-
-  // Start the glow animation
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1.05, // Very subtle scale increase
-          duration: 1500,
-          useNativeDriver: true,
-          easing: Easing.inOut(Easing.ease),
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-          easing: Easing.inOut(Easing.ease),
-        })
-      ])
-    ).start();
-  }, []);
 
   useEffect(() => {
     const loadResources = async () => {
@@ -582,30 +561,26 @@ export default function App() {
       disabled={isTransitioning} // Prevent navigation during transitions
     >
       {isActive ? (
-        <Animated.View 
-          style={[
-            styles.activeIconContainer,
-            { transform: [{ scale: glowAnim }] }
-          ]}
-        >
+        <View style={styles.activeIconContainer}>
           {children}
-        </Animated.View>
+        </View>
       ) : (
         children
       )}
     </Pressable>
   );
 
+  // Main render function
   if (!fontsLoaded) {
-    return null; // Return null while fonts are loading
+    return null; // Don't render until fonts are loaded
   }
 
-  // Still checking login status
+  // If isLoggedIn is null, we're still checking auth status - show the SimpleAuthLoadingScreen
   if (isLoggedIn === null) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Loading...</Text>
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SimpleAuthLoadingScreen />
+      </GestureHandlerRootView>
     );
   }
 
@@ -629,6 +604,7 @@ export default function App() {
     return (
       <GestureHandlerRootView style={{flex: 1}}>
         <ConfirmationScreen onComplete={handleConfirmationComplete} />
+        <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>
     );
   }
@@ -640,6 +616,7 @@ export default function App() {
           onComplete={handleBrandSearchComplete}
           stylePreference={stylePreference || 'option1'}
         />
+        <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>
     );
   }
@@ -651,6 +628,7 @@ export default function App() {
           onComplete={handleStylesSelectionComplete}
           stylePreference={stylePreference || 'option1'}
         />
+        <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>
     );
   }

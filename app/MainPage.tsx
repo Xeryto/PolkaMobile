@@ -7,12 +7,13 @@ import {
   Pressable, 
   Dimensions, 
   Platform, 
-  Animated, 
+  Animated as RNAnimated, 
   PanResponder,
   Easing 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
 import Cart2 from './assets/Cart2.svg';
 import Heart2 from './assets/Heart2.svg';
@@ -138,7 +139,7 @@ interface HeartButtonProps {
 
 const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
   // Local animation state
-  const heartScale = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new RNAnimated.Value(1)).current;
   const [isAnimating, setIsAnimating] = useState(false);
   
   // Track internal version of isLiked for debugging
@@ -178,20 +179,20 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
     );
     
     // Animate the heart
-    Animated.sequence([
+    RNAnimated.sequence([
       // Scale up
-      Animated.spring(heartScale, {
+      RNAnimated.spring(heartScale, {
         toValue: 1.3,
         useNativeDriver: true,
-        speed: 40,
+        speed: 100,
         bounciness: 12,
       }),
       // Scale back down
-      Animated.spring(heartScale, {
+      RNAnimated.spring(heartScale, {
         toValue: 1,
         useNativeDriver: true,
-        speed: 30,
-        bounciness: 4,
+        speed: 100,
+        bounciness: 12,
       })
     ]).start(() => {
       // Clear animation flag when complete
@@ -207,13 +208,13 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
       android_ripple={{ color: 'rgba(0,0,0,0.1)', radius: 20, borderless: true }}
       hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
     >
-      <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+      <RNAnimated.View style={{ transform: [{ scale: heartScale }] }}>
         {isLiked ? (
           <HeartFilled width={33} height={33} />
         ) : (
           <Heart2 width={33} height={33} />
         )}
-      </Animated.View>
+      </RNAnimated.View>
     </Pressable>
   );
 };
@@ -222,32 +223,27 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const screenHeight = Dimensions.get('window').height;
   const screenWidth = Dimensions.get('window').width;
 
-  // Animated values for various interactions
-  const pan = useRef(new Animated.ValueXY()).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const buttonsTranslateX = useRef(new Animated.Value(0)).current;
-  const sizesTranslateX = useRef(new Animated.Value(-screenWidth)).current;
-  const imageHeightPercent = useRef(new Animated.Value(100)).current;
+  // RNAnimated values for various interactions
+  const pan = useRef(new RNAnimated.ValueXY()).current;
+  const fadeAnim = useRef(new RNAnimated.Value(1)).current;
+  const buttonsTranslateX = useRef(new RNAnimated.Value(0)).current;
+  const sizesTranslateX = useRef(new RNAnimated.Value(-screenWidth)).current;
+  const imageHeightPercent = useRef(new RNAnimated.Value(100)).current;
   
   // Page fade-in animation
-  const pageOpacity = useRef(new Animated.Value(0)).current;
+  const pageOpacity = useRef(new RNAnimated.Value(0)).current;
   
   // Heart animation value
-  const heartScale = useRef(new Animated.Value(1)).current;
-  const longPressScale = useRef(new Animated.Value(1)).current;
+  const heartScale = useRef(new RNAnimated.Value(1)).current;
+  const longPressScale = useRef(new RNAnimated.Value(1)).current;
   
   // Animation controller references to allow cancellation
-  const heartAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const longPressAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const heartAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const longPressAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
-  const [isLongPressing, setIsLongPressing] = useState(false);
-  
-  // Debounce timer to prevent rapid taps
-  const lastTapRef = useRef<number>(0);
-  const TAP_DEBOUNCE = 100; // Reduced from 200ms to make it more responsive
 
   // Initialize with default items but only once
   const [cards, setCards] = useState<CardItem[]>(() => {
@@ -291,7 +287,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: Animated.event(
+      onPanResponderMove: RNAnimated.event(
         [null, { dy: pan.y }],
         { useNativeDriver: false }
       ),
@@ -302,7 +298,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
           swipeCard('up');
         } else {
           // Return card to original position
-          Animated.spring(pan, {
+          RNAnimated.spring(pan, {
             toValue: { x: 0, y: 0 },
             friction: 5,
             useNativeDriver: false
@@ -313,13 +309,13 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   ).current;
 
   const fadeOutIn = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
+    RNAnimated.sequence([
+      RNAnimated.timing(fadeAnim, {
         toValue: 0,
         duration: 100,
         useNativeDriver: true
       }),
-      Animated.timing(fadeAnim, {
+      RNAnimated.timing(fadeAnim, {
         toValue: 1,
         duration: 100,
         useNativeDriver: true
@@ -388,7 +384,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     // Toggle the like status
     toggleLike(index);
     
-    // Provide haptic feedback
+    // Provide haptic feedback,
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [cards, toggleLike]);
 
@@ -407,7 +403,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     const currentCard = cards[currentCardIndex];
     
     // Animate card moving off screen
-    Animated.timing(pan, {
+    RNAnimated.timing(pan, {
       toValue: { 
         x: direction === 'right' ? screenWidth : 0, 
         y: -screenHeight 
@@ -462,7 +458,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       pan.setValue({ x: 0, y: screenHeight });
       
       // Animate card back to original position
-      Animated.spring(pan, {
+      RNAnimated.spring(pan, {
         toValue: { x: 0, y: 0 },
         friction: 6,
         tension: 40,
@@ -478,20 +474,20 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
 
   const handleCartPress = () => {
     // Animate buttons out and size selection in
-    Animated.parallel([
-      Animated.timing(buttonsTranslateX, {
+    RNAnimated.parallel([
+      RNAnimated.timing(buttonsTranslateX, {
         toValue: screenWidth,
         duration: 300,
         easing: Easing.ease,
         useNativeDriver: true
       }),
-      Animated.timing(sizesTranslateX, {
+      RNAnimated.timing(sizesTranslateX, {
         toValue: 0,
         duration: 300,
         easing: Easing.ease,
         useNativeDriver: true
       }),
-      Animated.timing(imageHeightPercent, {
+      RNAnimated.timing(imageHeightPercent, {
         toValue: 90, // Shrink to 75% height
         duration: 300,
         easing: Easing.ease,
@@ -529,20 +525,20 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }
     
     // Reset animations and hide size selection
-    Animated.parallel([
-      Animated.timing(buttonsTranslateX, {
+    RNAnimated.parallel([
+      RNAnimated.timing(buttonsTranslateX, {
         toValue: 0,
         duration: 300,
         easing: Easing.ease,
         useNativeDriver: true
       }),
-      Animated.timing(sizesTranslateX, {
+      RNAnimated.timing(sizesTranslateX, {
         toValue: -screenWidth,
         duration: 300,
         easing: Easing.ease,
         useNativeDriver: true
       }),
-      Animated.timing(imageHeightPercent, {
+      RNAnimated.timing(imageHeightPercent, {
         toValue: 100, // Return to original height
         duration: 300,
         easing: Easing.ease,
@@ -567,7 +563,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     console.log(`renderCard - Rendering card ${card.id} at index ${index}, isLiked: ${isLiked}`);
 
     return (
-      <Animated.View 
+      <RNAnimated.View 
         {...panResponder.panHandlers}
         style={[
           styles.whiteBox, 
@@ -580,7 +576,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         ]}
       >
         <View style={styles.imageHolder}>
-          <Animated.View 
+          <RNAnimated.View 
           style={{ 
             width: '100%',
             height: imageHeightPercent.interpolate({
@@ -595,14 +591,14 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             style={styles.image}
             resizeMode="contain"
           />
-          </Animated.View>  
+          </RNAnimated.View>  
           <Pressable style={styles.dotsButton} onPress={() => console.log("pressed")}>
             <More width={23} height={33}/>
           </Pressable>
         </View>
 
         {/* Buttons Container */}
-        <Animated.View 
+        <RNAnimated.View 
           style={[
             styles.buttonContainer, 
             { 
@@ -638,10 +634,10 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             onLongPress={() => handleLongPress(index)}
             delayLongPress={300}
           />
-        </Animated.View>
+        </RNAnimated.View>
 
         {/* Size Selection Circles */}
-        <Animated.View 
+        <RNAnimated.View 
           style={[
             styles.sizeContainer, 
             { 
@@ -659,8 +655,8 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
               <Text style={styles.sizeText}>{size}</Text>
             </Pressable>
           ))}
-        </Animated.View>
-      </Animated.View>
+        </RNAnimated.View>
+      </RNAnimated.View>
     );
   }, [
     showSizeSelection, 
@@ -676,7 +672,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   // Fade in the entire page when component mounts
   useEffect(() => {
     // Start with opacity 0 and fade in
-    Animated.timing(pageOpacity, {
+    RNAnimated.timing(pageOpacity, {
       toValue: 1,
       duration: 400,
       useNativeDriver: true,
@@ -761,7 +757,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   }, [route?.params]); // Only dependent on route params now
 
   return (
-    <Animated.View style={[styles.container, { opacity: pageOpacity }]}>
+    <Animated.View style={[styles.container]} entering={FadeInDown.duration(500).delay(200)} exiting={FadeOutDown.duration(50)}>
       <View style={styles.roundedBox}>
         <LinearGradient
           colors={["rgba(205, 166, 122, 0.4)", "rgba(205, 166, 122, 0)"]}
@@ -781,14 +777,14 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         )}
 
         {cards.length > 0 && (
-          <Animated.View style={[styles.text, { opacity: fadeAnim }]}>
+          <RNAnimated.View style={[styles.text, { opacity: fadeAnim }]}>
             <Text style={styles.name} numberOfLines={1}>
               {cards[currentCardIndex]?.name || 'No Name'}
             </Text>
             <Text style={styles.price}>
               {cards[currentCardIndex]?.price || '0 р'}
             </Text>
-          </Animated.View>
+          </RNAnimated.View>
         )}
       </View>
     </Animated.View>
@@ -821,6 +817,7 @@ const styles = StyleSheet.create({
     //overflow: 'hidden',
     borderWidth: 3,
     borderColor: 'rgba(205, 166, 122, 0.4)',
+    zIndex: 900,
   },
   whiteBox: {
     width: '102%',
@@ -841,6 +838,7 @@ const styles = StyleSheet.create({
     elevation: 10, // For Android shadow
     justifyContent: 'center', // Center content vertically
     alignItems: 'center', // Center content horizontally
+    zIndex: 1000-7,
   },
   overlayLabelContainer: {
     width: '102%',
@@ -895,7 +893,7 @@ const styles = StyleSheet.create({
   text: {
     top: Platform.OS == 'android' ? '82.5%' : '85%',
     width: "100%",
-    paddingLeft: 22
+    paddingHorizontal: 18
   },
   name: {
     fontFamily: 'IgraSans', // Use the Igra Sans font

@@ -10,10 +10,12 @@ import {
   Dimensions,
   Platform,
   TouchableOpacity,
-  Keyboard
+  Keyboard,
+  ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import { AntDesign } from '@expo/vector-icons';
 
 // Create animated text component using proper method for this version
 const AnimatedText = Animated.createAnimatedComponent(Text);
@@ -386,12 +388,22 @@ const Search = ({ navigation }: SearchProps) => {
                 ]}
                 onPress={() => handleFilterPress(filterType as keyof FilterOptions)}
               >
-                <Text style={[
-                  styles.filterButtonText,
-                  isFilterSelected(filterType as keyof SelectedFilters) && styles.filterButtonTextActive
-                ]}>
-                  {selectedFilters[filterType as keyof SelectedFilters]}
-                </Text>
+                <View style={styles.filterButtonContent}>
+                  <Text style={[
+                    styles.filterButtonText,
+                    isFilterSelected(filterType as keyof SelectedFilters) && styles.filterButtonTextActive
+                  ]}>
+                    {selectedFilters[filterType as keyof SelectedFilters]}
+                  </Text>
+                  <AntDesign 
+                    name="caretdown" 
+                    size={12} 
+                    style={[
+                      styles.filterIcon,
+                      isFilterSelected(filterType as keyof SelectedFilters) && styles.filterIconActive
+                    ]} 
+                  />
+                </View>
               </Pressable>
             ))}
           </View>
@@ -402,6 +414,15 @@ const Search = ({ navigation }: SearchProps) => {
               entering={FadeInDown.duration(300)}
               style={styles.optionsContainer}
             >
+              <View style={styles.optionsHeader}>
+                <TouchableOpacity 
+                  style={styles.okButton}
+                  onPress={() => setActiveFilter(null)}
+                >
+                  <Text style={styles.okButtonText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.scrollView}>
               {filterOptions[activeFilter as keyof FilterOptions].map((option) => (
                 <Pressable
                   key={option}
@@ -411,14 +432,25 @@ const Search = ({ navigation }: SearchProps) => {
                   ]}
                   onPress={() => handleOptionSelect(activeFilter as keyof FilterOptions, option)}
                 >
-                  <Text style={[
-                    styles.optionButtonText,
-                    selectedFilters[activeFilter as keyof SelectedFilters] === option && styles.optionButtonTextActive
-                  ]}>
-                    {option}
-                  </Text>
+                  <View style={styles.optionButtonContent}>
+                    <Text style={[
+                      styles.optionButtonText,
+                      selectedFilters[activeFilter as keyof SelectedFilters] === option && styles.optionButtonTextActive
+                    ]}>
+                      {option}
+                    </Text>
+                    {selectedFilters[activeFilter as keyof SelectedFilters] === option && (
+                      <AntDesign 
+                        name="check" 
+                        size={14} 
+                        style={styles.optionCheckIcon} 
+                      />
+                    )}
+                  </View>
                 </Pressable>
               ))}
+              </ScrollView>
+              
             </Animated.View>
           )}
         </Animated.View>
@@ -538,32 +570,46 @@ const styles = StyleSheet.create({
   },
   filterButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     //padding: 4,
     height: '100%',
     //marginHorizontal: -4
-    marginHorizontal: -6,
   },
   filterButton: {
-    //flex: 1,
-    width: '30%',
+    //flex: 1,s
     //paddingVertical: 4,
-    //paddingHorizontal: 8,
+    paddingHorizontal: 20,
     borderRadius: 41,
     //marginHorizontal: 4,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: -1,
   },
   filterButtonActive: {
     backgroundColor: '#CDA67A',
+  },
+  filterButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterButtonText: {
     fontFamily: 'Igra Sans',
     fontSize: 14,
     color: '#4A3120',
+    marginRight: 5,
+    textAlignVertical: 'center',
   },
   filterButtonTextActive: {
+    color: 'white',
+  },
+  filterIcon: {
+    color: '#4A3120',
+    marginTop: Platform.OS === 'ios' ? -3 : 2,
+    alignSelf: 'center',
+  },
+  filterIconActive: {
     color: 'white',
   },
   optionsContainer: {
@@ -573,30 +619,61 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#F2ECE7',
     borderRadius: 17,
-    padding: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 24,
     zIndex: 999,
-    //...(Platform.OS === 'android' ? { elevation: 24 } : {}),
+  },
+  scrollView: {
+    padding: 4,
+    borderRadius: 17,
+    width: '70%',
+  },
+  optionsHeader: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    zIndex: 1000,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  okButton: {
+    backgroundColor: '#CDA57A',
+    paddingVertical: 20,
+    paddingHorizontal: 25,
+    borderRadius: 41,
+  },
+  okButtonText: {
+    fontFamily: 'Igra Sans',
+    fontSize: 20,
+    color: 'black',
+    fontWeight: '500',
   },
   optionButton: {
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 15,
-    marginVertical: 1,
+    marginVertical: 5,
   },
   optionButtonActive: {
     backgroundColor: '#CDA67A',
   },
+  optionButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   optionButtonText: {
     fontFamily: 'Igra Sans',
-    fontSize: 14,
+    fontSize: 20,
     color: '#000',
   },
   optionButtonTextActive: {
+    color: 'white',
+  },
+  optionCheckIcon: {
     color: 'white',
   },
   resultsContainer: {
@@ -626,7 +703,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
     backgroundColor: '#EDE7E2',
-    borderRadius: 30,
+    borderRadius: 40,
   },
   imageContainer: {
     overflow: 'hidden',
@@ -655,10 +732,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4A3120',
     textAlign: 'center',
+    paddingHorizontal: 10,
   },
   priceContainer: {
     position: 'absolute',
-    right: -25,
+    right: -20,
     top: '50%',
     transform: [{ translateY: -20 }, { rotate: '90deg' }],
     //backgroundColor: 'rgba(242, 236, 231, 0.8)',

@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import * as authStorage from '../authStorage';
 import Logo from '../assets/Logo.svg';
 import VK from '../assets/VK.svg';
 import { Dimensions } from 'react-native';
@@ -241,19 +240,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 )}
               </TouchableOpacity>
               
+              <View style={styles.termsContainer}>
+                <Text style={styles.termsText}>
+                  Регистрируясь, вы соглашаетесь с{' '}
+                  <Text style={styles.termsLink}>Условиями использования</Text>
+                  {' '}и{' '}
+                  <Text style={styles.termsLink}>Политикой конфиденциальности</Text>
+                </Text>
+              </View>
+
               <View style={styles.socialContainer}>
                 <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
                   <VK width={30} height={30} />
                 </TouchableOpacity>
-              </View>
-              
-              <View style={styles.termsContainer}>
-                <Text style={styles.termsText}>
-                  By signing up, you agree to our{' '}
-                  <Text style={styles.termsLink}>Terms of Service</Text>
-                  {' '}and{' '}
-                  <Text style={styles.termsLink}>Privacy Policy</Text>
-                </Text>
               </View>
             </Animated.View>
           </ScrollView>
@@ -360,7 +359,7 @@ const styles = StyleSheet.create({
     borderRadius: 41,
     paddingVertical: 22,
     alignItems: 'center',
-    marginTop: 15,
+    marginTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -376,7 +375,7 @@ const styles = StyleSheet.create({
     color: '#F2ECE7',
   },
   termsContainer: {
-    marginTop: 20,
+    marginTop: 10,
     alignItems: 'center',
   },
   termsText: {
