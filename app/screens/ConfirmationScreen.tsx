@@ -72,9 +72,7 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
             onPress={onBack}
             activeOpacity={0.7}
           >
-            <Animated.View entering={FadeInDown.duration(500).delay(50)}>
               <BackIcon width={33} height={33} />
-            </Animated.View>
           </TouchableOpacity>  
           <Animated.View 
             style={styles.formContainerShadow} 
@@ -83,12 +81,12 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
             <View 
               style={[styles.formContainer]}
             >
-              <Animated.View entering={FadeInDown.duration(500).delay(50)} style={[{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'space-around', flexDirection: 'row' }]}>
+              <Animated.View style={[{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'space-around', flexDirection: 'row' }]}>
                 <View style={styles.logoContainer}>
                   <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
                 </View>
                 
-                <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonShadow}>
+                <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.buttonShadow}>
                   <Pressable
                     style={({pressed}) => [
                       styles.optionButton,
@@ -108,7 +106,7 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
                   </Pressable>
                 </Animated.View>
                 
-                <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonShadow}>
+                <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.buttonShadow}>
                   <Pressable
                     style={({pressed}) => [
                       styles.optionButton,

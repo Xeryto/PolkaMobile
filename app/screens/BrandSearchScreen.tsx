@@ -129,21 +129,19 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
             onPress={onBack}
             activeOpacity={0.7}
           >
-            <Animated.View entering={FadeInDown.duration(500).delay(50)}>
               <BackIcon width={33} height={33} />
-            </Animated.View>
           </TouchableOpacity>
         <View style={styles.formContainerShadow}>
           <Animated.View 
             style={styles.formContainer}
           >
-            <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.logoContainer}>
+            <Animated.View style={styles.logoContainer}>
               <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
             </Animated.View>
             
             
             <Animated.View 
-              entering={FadeInDown.duration(500).delay(100)}
+              entering={FadeInDown.duration(500).delay(50)}
               style={[
                 styles.searchContainer,
                 isSearchActive && styles.searchContainerActive
@@ -181,7 +179,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
               </View>
             </Animated.View>
             
-            <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.brandsContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.brandsContainer}>
               <FlatList
                 data={filteredBrands}
                 renderItem={renderBrandItem}
@@ -191,7 +189,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
               />
             </Animated.View>
             
-            <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.buttonContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.buttonContainer}>
               <Pressable 
                 style={({pressed}) => [
                   styles.continueButton,

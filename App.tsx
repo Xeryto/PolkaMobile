@@ -570,21 +570,72 @@ export default function App() {
     }
   };
 
-  const NavButton = ({ onPress, children, isActive }: NavButtonProps) => (
-    <Pressable 
-      style={[styles.navItem, isActive ? styles.activeNavItem : null]} 
-      onPress={onPress}
-      disabled={isTransitioning} // Prevent navigation during transitions
-    >
-      {isActive ? (
-        <View style={styles.activeIconContainer}>
+  const NavButton = ({ onPress, children, isActive }: NavButtonProps) => {
+    // Animation values for press effect and shadow
+    const [scale] = useState(new Animated.Value(1));
+    const [shadowOpacity] = useState(new Animated.Value(isActive ? 0.5 : 0));
+    
+    // Update shadow opacity when active state changes
+    useEffect(() => {
+      Animated.timing(shadowOpacity, {
+        toValue: isActive ? 0.5 : 0,
+        duration: 150,
+        useNativeDriver: false, // Shadow opacity can't use native driver
+        easing: Easing.inOut(Easing.ease)
+      }).start();
+    }, [isActive, shadowOpacity]);
+    
+    const handlePressIn = () => {
+      Animated.timing(scale, {
+        toValue: 0.9,
+        duration: 80,
+        useNativeDriver: true,
+        easing: Easing.inOut(Easing.ease)
+      }).start();
+    };
+    
+    const handlePressOut = () => {
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+        easing: Easing.inOut(Easing.ease)
+      }).start();
+      
+      // Call the actual onPress handler
+      onPress();
+    };
+    
+    // Create animated shadow style that will change with shadowOpacity value
+    const animatedShadowStyle = {
+      shadowColor: 'rgba(0, 0, 0, 1)',
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 4,
+      shadowOpacity: shadowOpacity,
+      elevation: shadowOpacity.interpolate({
+        inputRange: [0, 0.5],
+        outputRange: [0, 3]
+      }),
+      backgroundColor: 'transparent',
+      borderRadius: 18
+    };
+    
+    return (
+      <Pressable 
+        style={[styles.navItem, isActive ? styles.activeNavItem : null]} 
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={isTransitioning} // Prevent navigation during transitions
+      >
+        <Animated.View style={[
+          { transform: [{ scale }] },
+          animatedShadowStyle
+        ]}>
           {children}
-        </View>
-      ) : (
-        children
-      )}
-    </Pressable>
-  );
+        </Animated.View>
+      </Pressable>
+    );
+  };
 
   // Main render function
   if (!fontsLoaded) {
@@ -779,24 +830,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 15,
-    //height: 48,
-    //width: 48,
   },
   activeNavItem: {
     // Slight visual indicator for active nav item
     opacity: 1,
     //transform: [{scale: 1.05}] // Reduced from 1.1 for subtlety
-  },
-  activeIconContainer: {
-    // Subtle dark shadow for active icon
-    shadowColor: 'rgba(0, 0, 0, 1)', // Semi-transparent black
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5, // Reduced for subtlety
-    shadowRadius: 4, // Tighter shadow
-    elevation: 3, // Lower elevation
-    backgroundColor: 'transparent',
-    borderRadius: 18,
-    padding: 0, // Remove padding to improve quality
   },
   icon: {
     width: 20,

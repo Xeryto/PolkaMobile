@@ -60,7 +60,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
       general: '' 
     };
 
-    const illegalCharRegex = /[^a-zA-Z0-9@#$-_!]/; // Only allow letters, numbers, and @#$-_!
+    const illegalCharRegex = /[^a-zA-Z0-9#$-_!]/; // Only allow letters, numbers, and #$-_!
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
     
     // Validate username
@@ -169,7 +169,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View 
-              entering={FadeInDown.duration(500).delay(200)}
+              entering={FadeInDown.duration(500)}
               style={styles.formContainer}
             >
               <TouchableOpacity
@@ -192,7 +192,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 </View>
               ) : null}
               
-              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(250)}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(50)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.username ? styles.inputError : null]}
@@ -208,7 +208,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 ) : null}
               </Animated.View>
               
-              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(300)}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(100)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.email ? styles.inputError : null]}
@@ -226,7 +226,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 ) : null}
               </Animated.View>
               
-              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(350)}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(150)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.password ? styles.inputError : null]}
@@ -242,7 +242,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 ) : null}
               </Animated.View>
               
-              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(400)}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(200)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
@@ -268,7 +268,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                   <Animated.View 
                 style={
                   [styles.signupButton, isLoading || !termsAccepted ? styles.signupButtonDisabled : null]} 
-                entering={FadeInDown.duration(500).delay(450)}
+                entering={FadeInDown.duration(500).delay(250)}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
@@ -278,7 +278,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 </Animated.View>
               </TouchableOpacity>
               
-              <Animated.View style={styles.termsContainer} entering={FadeInDown.duration(500).delay(500)}>
+              <Animated.View style={styles.termsContainer} entering={FadeInDown.duration(500).delay(300)}>
                 <View style={styles.termsRow}>
                   <TouchableOpacity onPress={handleInfoPress}>
                     <InfoIcon width={15} height={15} />
@@ -314,7 +314,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 </View>
               </Animated.View>
 
-              <Animated.View style={styles.socialContainer} entering={FadeInDown.duration(500).delay(550)}>
+              <Animated.View style={styles.socialContainer} entering={FadeInDown.duration(500).delay(350)}>
                 <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
                   <VK width={30} height={30} />
                 </TouchableOpacity>

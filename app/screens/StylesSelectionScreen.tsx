@@ -13,7 +13,7 @@ import {
   Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
 
@@ -137,33 +137,30 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
       end={{ x: 1, y: 0.8 }}
     >
       <SafeAreaView style={styles.safeArea}>
-        {onBack && (
-          <TouchableOpacity
+      <Animated.View style={styles.roundedBox} entering={FadeInDown.duration(500)}>
+        <LinearGradient
+          colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+          start={{ x: 0.1, y: 1 }}
+          end={{ x: 0.9, y: 0.3 }}
+          style={styles.gradientBackground}
+        />
+        <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
             activeOpacity={0.7}
           >
-            <BackIcon width={33} height={33} />
+              <BackIcon width={33} height={33} />
           </TouchableOpacity>
-        )}
         <View style={styles.formContainerShadow}>
           <Animated.View 
-            entering={FadeIn.duration(800)}
+            entering={FadeInDown.duration(500)}
             style={styles.formContainer}
           >
             <View style={styles.logoContainer}>
               <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
             </View>
             
-            <Text style={styles.headerText}>
-              Выберите ваши любимые стили
-            </Text>
-            
-            <Text style={styles.subHeaderText}>
-              Выберите до 5 стилей для индивидуальных рекомендаций
-            </Text>
-            
-            <View style={styles.stylesContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.stylesContainer}>
               <FlatList
                 data={styleOptions}
                 renderItem={renderStyleItem}
@@ -171,15 +168,9 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
                 numColumns={2}
                 contentContainerStyle={styles.stylesList}
               />
-            </View>
+            </Animated.View>
             
-            <View style={styles.selectedCount}>
-              <Text style={styles.selectedCountText}>
-                Выбрано: {selectedStyles.length}/5
-              </Text>
-            </View>
-            
-            <View style={styles.buttonContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonContainer}>
               <Pressable 
                 style={({pressed}) => [
                   styles.continueButton,
@@ -192,22 +183,17 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
                   Продолжить
                 </Text>
               </Pressable>
-              
-              <Pressable 
-                style={({pressed}) => [
-                  styles.skipButton,
-                  pressed && styles.buttonPressed
-                ]}
-                onPress={() => onComplete([])}
-                android_ripple={{color: '#CDA67A', borderless: false}}
-              >
-                <Text style={styles.skipButtonText}>
-                  Пропустить
-                </Text>
-              </Pressable>
-            </View>
+            </Animated.View>
           </Animated.View>
         </View>
+        <Animated.View 
+            style={styles.textContainer}
+          >
+            <Text style={styles.text}>
+              СТИЛЬ
+            </Text>
+          </Animated.View>
+        </Animated.View>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -221,21 +207,38 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingTop: Platform.OS === 'ios' ? 0 : 30,
+  },
+  roundedBox: {
+    width: '88%',
+    height: '95%',
+    borderRadius: 41,
+    backgroundColor: 'rgba(205, 166, 122, 0)',
+    position: 'relative',
+    borderWidth: 3,
+    borderColor: 'rgba(205, 166, 122, 0.4)',
+  },
+  gradientBackground: {
+    borderRadius: 37,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
   },
   backButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
-    left: 20,
+    top: 21,
+    left: 21,
     zIndex: 10,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 33,
+    height: 33,
   },
   formContainerShadow: {
-    width: '100%',
-    maxHeight: height * 0.85,
+    top: -3,
+    left: -3,
+    width: width*0.88,
+    height: '90%',
     borderRadius: 41,
     ...Platform.select({
       ios: {
@@ -251,10 +254,10 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+    height: '100%',
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
-    padding: 25,
-    paddingBottom: 30,
+    padding: 21,
     alignItems: 'center',
     ...Platform.select({
       android: {
@@ -371,45 +374,43 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   continueButton: {
-    width: '80%',
-    backgroundColor: '#CDA67A',
-    borderRadius: 30,
+    backgroundColor: '#E0D6CC',
+    borderRadius: 41,
     paddingVertical: 16,
+    paddingHorizontal: 25,
     alignItems: 'center',
-    marginBottom: 12,
+    //marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 6,
         overflow: 'hidden'
       },
     }),
   },
   continueButtonText: {
     fontFamily: 'IgraSans',
-    fontSize: 18,
-    color: '#FFF',
+    fontSize: 20,
+    color: '#000',
   },
-  skipButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    overflow: 'hidden'
+  textContainer: {
+    position: 'absolute',
+    bottom: 0,
+    marginBottom: 18,
+    marginLeft: 27,
   },
-  skipButtonText: {
-    fontFamily: 'REM',
-    fontSize: 14,
-    color: '#4A3120',
-    textDecorationLine: 'underline',
+  text: {
+    fontFamily: 'IgraSans',
+    fontSize: 38,
+    color: '#fff',
   },
 });
 

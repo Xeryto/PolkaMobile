@@ -9,7 +9,10 @@ import {
   Dimensions,
   TextInput,
   Platform,
-  InteractionManager
+  InteractionManager,
+  TouchableOpacity,
+  Animated as RNAnimated,
+  Easing as RNEasing
 } from 'react-native';
 import Animated, { 
   FadeIn, 
@@ -23,7 +26,8 @@ import Animated, {
   FadeOut
 } from 'react-native-reanimated';
 import PlusSvg from './assets/Plus.svg';
-
+import BackIcon from './assets/Back.svg';
+import { LinearGradient } from 'expo-linear-gradient';
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
   navigate: (screen: string, params?: any) => void;
@@ -35,11 +39,29 @@ interface FavoritesProps {
   navigation: SimpleNavigation;
 }
 
+// Interface for saved items with price
 interface FavoriteItem {
   id: number;
   name: string;
   price: string;
   image: any;
+}
+
+// New interface for friend items without price
+interface FriendItem {
+  id: number;
+  name: string;
+  image: any;
+  username: string;
+}
+
+// Interface for recommended items for friends
+interface RecommendedItem {
+  id: number;
+  name: string;
+  price: string;
+  image: any;
+  isLiked?: boolean;
 }
 
 const { width, height } = Dimensions.get('window');
@@ -53,6 +75,9 @@ const ANIMATION_CONFIG = {
 // Disable complex animations on Android for better performance
 const USE_ANIMATIONS = Platform.OS === 'ios';
 
+// Define a union type for items that can be either FavoriteItem or FriendItem
+type ItemType = FavoriteItem | FriendItem;
+
 const Favorites = ({ navigation }: FavoritesProps) => {
   // Basic state
   const [activeView, setActiveView] = useState<'friends' | 'saved'>('friends');
@@ -60,10 +85,14 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMounted, setIsMounted] = useState(true);
   const [isReady, setIsReady] = useState(false); // Control initial render
+  const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [customRecommendations, setCustomRecommendations] = useState<{[key: number]: RecommendedItem[]}>({});
   
   // Opacity values for the main view and search view
   const mainViewOpacity = useSharedValue(1);
   const searchViewOpacity = useSharedValue(0);
+  const profileViewOpacity = useSharedValue(0);
   
   // Animation value for press animation
   const pressAnimationScale = useSharedValue(1);
@@ -96,34 +125,62 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     },
   ];
 
-  const friendItems: FavoriteItem[] = [
+  const friendItems: FriendItem[] = [
     { 
       id: 5, 
       name: 'FRIEND ITEM 1', 
-      price: '27 000 р', 
-      image: require('./assets/Vision2.png')
+      image: require('./assets/Vision2.png'),
+      username: 'friend1'
     },
     { 
       id: 6, 
       name: 'FRIEND ITEM 2', 
-      price: '32 000 р', 
-      image: require('./assets/Vision.png')
+      image: require('./assets/Vision.png'),
+      username: 'friend2'
     },
     { 
       id: 7, 
       name: 'FRIEND ITEM 3', 
-      price: '19 000 р', 
-      image: require('./assets/Vision2.png')
+      image: require('./assets/Vision2.png'),
+      username: 'friend3'
     },
     { 
       id: 8,
       name: 'FRIEND ITEM 4', 
-      price: '24 000 р', 
-      image: require('./assets/Vision.png')
+      image: require('./assets/Vision.png'),
+      username: 'friend4'
     },
   ];
+
+  // Sample recommended items for friends
+  const recommendedItems: { [key: number]: RecommendedItem[] } = {
+    5: [
+      { id: 101, name: 'Для друга 1 - Рек. 1', price: '15 000 р', image: require('./assets/Vision.png') },
+      { id: 102, name: 'Для друга 1 - Рек. 2', price: '20 000 р', image: require('./assets/Vision2.png') },
+      { id: 103, name: 'Для друга 1 - Рек. 3', price: '18 000 р', image: require('./assets/Vision.png') },
+      { id: 104, name: 'Для друга 1 - Рек. 4', price: '22 000 р', image: require('./assets/Vision2.png') },
+    ],
+    6: [
+      { id: 201, name: 'Для друга 2 - Рек. 1', price: '25 000 р', image: require('./assets/Vision2.png') },
+      { id: 202, name: 'Для друга 2 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
+      { id: 203, name: 'Для друга 2 - Рек. 3', price: '21 000 р', image: require('./assets/Vision2.png') },
+      { id: 204, name: 'Для друга 2 - Рек. 4', price: '17 000 р', image: require('./assets/Vision.png') },
+    ],
+    7: [
+      { id: 301, name: 'Для друга 3 - Рек. 1', price: '23 000 р', image: require('./assets/Vision.png') },
+      { id: 302, name: 'Для друга 3 - Рек. 2', price: '28 000 р', image: require('./assets/Vision2.png') },
+      { id: 303, name: 'Для друга 3 - Рек. 3', price: '16 000 р', image: require('./assets/Vision.png') },
+      { id: 304, name: 'Для друга 3 - Рек. 4', price: '24 000 р', image: require('./assets/Vision2.png') },
+    ],
+    8: [
+      { id: 401, name: 'Для друга 4 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
+      { id: 402, name: 'Для друга 4 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
+      { id: 403, name: 'Для друга 4 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
+      { id: 404, name: 'Для друга 4 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
+    ],
+  };
   
-  // Animated styles for main view and search view - avoid using .value in render
+  // Animated styles for views
   const mainViewAnimatedStyle = useAnimatedStyle(() => ({
     position: 'absolute',
     width: '100%',
@@ -140,6 +197,16 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     height: '100%',
     opacity: searchViewOpacity.value,
     display: searchViewOpacity.value === 0 ? 'none' : 'flex',
+  }));
+
+  const profileViewAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: profileViewOpacity.value,
+    display: profileViewOpacity.value === 0 ? 'none' : 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
   }));
   
   // Create animated style for bottom box press animation only
@@ -167,6 +234,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       setIsMounted(false);
       cancelAnimation(mainViewOpacity);
       cancelAnimation(searchViewOpacity);
+      cancelAnimation(profileViewOpacity);
       cancelAnimation(pressAnimationScale);
     };
   }, []);
@@ -179,13 +247,32 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       // Fade out main view, fade in search view
       mainViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
       searchViewOpacity.value = withTiming(1, ANIMATION_CONFIG);
+      profileViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
     } else {
       // Fade in main view, fade out search view
       mainViewOpacity.value = withTiming(1, ANIMATION_CONFIG);
       searchViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
+      // Don't change profile view here
     }
   }, [isSearchActive, isMounted]);
-  
+
+  // Handle friend profile view
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    if (selectedFriend) {
+      // Fade out main view, fade in profile view
+      mainViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
+      profileViewOpacity.value = withTiming(1, ANIMATION_CONFIG);
+      searchViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
+    } else {
+      // Fade in main view, fade out profile view
+      mainViewOpacity.value = withTiming(1, ANIMATION_CONFIG);
+      profileViewOpacity.value = withTiming(0, ANIMATION_CONFIG);
+      // Don't change search view here
+    }
+  }, [selectedFriend, isMounted]);
+
   // Simplify toggle view with no animations
   const toggleView = () => {
     console.log('Toggling view from', activeView, 'to', activeView === 'friends' ? 'saved' : 'friends');
@@ -209,24 +296,93 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }
   };
 
+  // Handle friend selection
+  const handleFriendSelect = (friend: FriendItem) => {
+    console.log(`Friend selected: ${friend.name}`);
+    setSelectedFriend(friend);
+  };
+
+  // Handle back from friend profile
+  const handleBackFromProfile = () => {
+    setSelectedFriend(null);
+  };
+
+  // Handle regenerate recommendations
+  const handleRegenerateRecommendations = () => {
+    // Only proceed if a friend is selected
+    if (!selectedFriend) return;
+
+    console.log('Regenerating recommendations for', selectedFriend.name);
+    
+    // Show loading indicator
+    setIsRegenerating(true);
+
+    // Simulate API call with a delay
+    setTimeout(() => {
+      // Generate new recommendations (in a real app, this would be from an API)
+      const shuffledItems = [...recommendedItems[selectedFriend.id]];
+      
+      // Shuffle the array to simulate new recommendations
+      for (let i = shuffledItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledItems[i], shuffledItems[j]] = [shuffledItems[j], shuffledItems[i]];
+      }
+      
+      // Add some randomness to the prices to make them look different
+      const newRecommendations = shuffledItems.map(item => ({
+        ...item,
+        id: item.id + 1000, // Make sure IDs are unique
+        price: `${Math.floor(Math.random() * 30 + 15)} 000 р`
+      }));
+      
+      // Update the recommendations
+      setCustomRecommendations({
+        ...customRecommendations,
+        [selectedFriend.id]: newRecommendations
+      });
+      
+      // Hide loading indicator
+      setIsRegenerating(false);
+    }, 1000); // 1 second delay to simulate network request
+  };
+
+  // Simulate API call to check if an item is liked by the user
+  const checkItemLikedStatus = (itemId: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      // Simulate network delay
+      setTimeout(() => {
+        console.log(`API - Checking if item ${itemId} is liked`);
+        
+        // In a real app, this would send a request to the server
+        // to check if the current user has this item in their likes
+        // For now, we'll simulate a random result or return false
+        const isLiked = false; // Default to not liked for recommended items
+        
+        console.log(`API - Item ${itemId} liked status: ${isLiked}`);
+        resolve(isLiked);
+      }, 200); // 200ms delay to simulate network
+    });
+  };
+
   // Improved navigation handler with animation cleanup - now with item data passing
-  const handleNavigate = (screen: string, item?: FavoriteItem, isSavedItem: boolean = false) => {
+  const handleNavigate = (screen: string, params?: any, fromFavorites: boolean = false) => {
     setIsMounted(false);
     // Use a shorter timeout on Android
     const delay = Platform.OS === 'ios' ? 50 : 0;
     setTimeout(() => {
-      if (isSavedItem && item && screen === 'Home') {
+      if (fromFavorites && params && screen === 'Home') {
         // Convert the saved item to a card item format and pass it
-        const params = { 
+        const navigationParams = { 
           addCardItem: {
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            image: item.image
+            id: params.id,
+            name: params.name,
+            price: params.price,
+            image: params.image,
+            isLiked: params.isLiked // Pass the isLiked property, which may be undefined
           }
         };
-        console.log('NAVIGATING TO HOME WITH PARAMS:', params);
-        navigation.navigate(screen, params);
+        console.log('NAVIGATING TO HOME WITH PARAMS:', navigationParams);
+        navigation.navigate(screen, navigationParams);
       } else if (screen === 'Home') {
         console.log('NAVIGATING TO HOME WITHOUT PARAMS');
         navigation.navigate(screen);
@@ -244,12 +400,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       )
     : [];
 
-  // Render a single item - with platform-specific optimizations
-  const renderItem = ({ item, index }: { item: FavoriteItem, index: number }) => {
-    // Determine if this is a saved item based on current view
-    const isSavedItem = activeView === 'saved';
-    console.log(`Rendering item ${item.name}, isSavedItem: ${isSavedItem}, activeView: ${activeView}`);
-    
+  // Render a saved item
+  const renderSavedItem = ({ item, index }: { item: FavoriteItem, index: number }) => {
     // Simple static rendering for Android
     if (!USE_ANIMATIONS) {
       return (
@@ -258,16 +410,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
             <Pressable 
               style={styles.imageContainer}
               onPress={() => {
-                console.log(`Item pressed: ${item.name}, isSavedItem: ${isSavedItem}, activeView: ${activeView}`);
-                if (isSavedItem) {
-                  // Only saved items navigate with params
-                  console.log('Navigating with saved item:', item);
-                  handleNavigate('Home', item, true);
-                } else {
-                  // Friend items do nothing
-                  console.log('Friend item pressed - doing nothing');
-                  // No navigation for friend items
-                }
+                console.log(`Saved item pressed: ${item.name}`);
+                // Navigate with saved item
+                handleNavigate('Home', item, true);
               }}
             >
               <Image source={item.image} style={styles.itemImage} />
@@ -287,23 +432,16 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     return (
       <View style={styles.itemWrapper}>
         <Animated.View
-          entering={FadeInDown.duration(400).delay(100 + index * 50)}
+          entering={FadeInDown.duration(300).delay(100 + index * 50)}
           exiting={FadeOutDown.duration(50)}
         >
           <View style={styles.itemContainer}>
             <Pressable 
               style={styles.imageContainer}
               onPress={() => {
-                console.log(`Item pressed: ${item.name}, isSavedItem: ${isSavedItem}, activeView: ${activeView}`);
-                if (isSavedItem) {
-                  // Only saved items navigate with params
-                  console.log('Navigating with saved item:', item);
-                  handleNavigate('Home', item, true);
-                } else {
-                  // Friend items do nothing
-                  console.log('Friend item pressed - doing nothing');
-                  // No navigation for friend items
-                }
+                console.log(`Saved item pressed: ${item.name}`);
+                // Navigate with saved item
+                handleNavigate('Home', item, true);
               }}
             >
               <Image source={item.image} style={styles.itemImage} />
@@ -320,22 +458,92 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     );
   };
 
-  // Render a search result item with platform-specific optimizations
-  const renderSearchItem = ({ item, index }: { item: FavoriteItem, index: number }) => {
-    // Search results are always friend items
-    const isSavedItem = false;
-    
+  // Render a friend item
+  const renderFriendItem = ({ item, index }: { item: FriendItem, index: number }) => {
     // Simple static rendering for Android
     if (!USE_ANIMATIONS) {
       return (
-        <View style={styles.searchItemWrapper}>
-          <View style={styles.searchItem}>
+        <View style={styles.itemWrapper}>
+          <View style={styles.itemContainer}>
             <Pressable 
               style={styles.imageContainer}
               onPress={() => {
-                // Search results are friend items, so no navigation
-                console.log('Search result item pressed - doing nothing');
-                // No navigation for search items
+                console.log(`Friend item pressed: ${item.name}`);
+                // Show friend profile
+                handleFriendSelect(item);
+              }}
+            >
+              <Image source={item.image} style={styles.itemImage} />
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+              </View>
+              {item.username && (
+                <View style={styles.usernameContainer}>
+                  <Text style={styles.usernameText}>@{item.username}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+    
+    // More complex animations for iOS
+    return (
+      <View style={styles.itemWrapper}>
+        <Animated.View
+          entering={FadeInDown.duration(300).delay(100 + index * 50)}
+          exiting={FadeOutDown.duration(50)}
+        >
+          <View style={styles.itemContainer}>
+            <Pressable 
+              style={styles.imageContainer}
+              onPress={() => {
+                console.log(`Friend item pressed: ${item.name}`);
+                // Show friend profile
+                handleFriendSelect(item);
+              }}
+            >
+              <Image source={item.image} style={styles.itemImage} />
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
+              </View>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  // Render a recommended item
+  const renderRecommendedItem = ({ item, index }: { item: RecommendedItem, index: number }) => {
+    // Simple static rendering for Android
+    if (!USE_ANIMATIONS) {
+      return (
+        <View style={[styles.itemWrapper, {width: (width * 0.88 - 50) / 2}]}>
+          <View style={styles.itemContainer}>
+            <Pressable 
+              style={styles.imageContainer}
+              onPress={() => {
+                console.log(`Recommended item pressed: ${item.name}`);
+                
+                // Check liked status with API before navigating
+                checkItemLikedStatus(item.id)
+                  .then(isLiked => {
+                    // Update the item with the liked status from the API
+                    const itemWithLikeStatus = {
+                      ...item,
+                      isLiked: isLiked
+                    };
+                    
+                    // Navigate to main page with the recommended item and its like status
+                    handleNavigate('Home', itemWithLikeStatus, true);
+                  })
+                  .catch(error => {
+                    console.error('Error checking like status:', error);
+                    // If there's an error, navigate with the original item
+                    handleNavigate('Home', item, true);
+                  });
               }}
             >
               <Image source={item.image} style={styles.itemImage} />
@@ -353,9 +561,82 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     
     // More complex animations for iOS
     return (
+      <View style={[styles.itemWrapper, {width: (width * 0.88 - 50) / 2}]}>
+        <Animated.View
+          entering={FadeInDown.duration(300).delay(100 + index * 50)}
+          exiting={FadeOutDown.duration(50)}
+        >
+          <View style={styles.itemContainer}>
+            <Pressable 
+              style={styles.imageContainer}
+              onPress={() => {
+                console.log(`Recommended item pressed: ${item.name}`);
+                
+                // Check liked status with API before navigating
+                checkItemLikedStatus(item.id)
+                  .then(isLiked => {
+                    // Update the item with the liked status from the API
+                    const itemWithLikeStatus = {
+                      ...item,
+                      isLiked: isLiked
+                    };
+                    
+                    // Navigate to main page with the recommended item and its like status
+                    handleNavigate('Home', itemWithLikeStatus, true);
+                  })
+                  .catch(error => {
+                    console.error('Error checking like status:', error);
+                    // If there's an error, navigate with the original item
+                    handleNavigate('Home', item, true);
+                  });
+              }}
+            >
+              <Image source={item.image} style={styles.itemImage} />
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+              </View>
+              <View style={styles.priceContainer}>
+                <Text style={styles.itemPrice}>{item.price}</Text>
+              </View>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  // Render a search result item with platform-specific optimizations
+  const renderSearchItem = ({ item, index }: { item: FriendItem, index: number }) => {
+    
+    // Simple static rendering for Android
+    if (!USE_ANIMATIONS) {
+      return (
+        <View style={styles.searchItemWrapper}>
+          <View style={styles.searchItem}>
+            <Pressable 
+              style={styles.imageContainer}
+              onPress={() => {
+                // Search results are friend items, so no navigation
+                console.log('Search result item pressed - doing nothing');
+                // No navigation for search items
+                handleFriendSelect(item);
+              }}
+            >
+              <Image source={item.image} style={styles.itemImage} />
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+    
+    // More complex animations for iOS
+    return (
       <View style={styles.searchItemWrapper}>
         <Animated.View
-          entering={FadeInDown.duration(400).delay(100 + index * 50)}
+          entering={FadeInDown.duration(300).delay(100 + index * 50)}
           exiting={FadeOutDown.duration(50)}
         >
           <View style={styles.searchItem}>
@@ -365,14 +646,12 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                 // Search results are friend items, so no navigation
                 console.log('Search result item pressed - doing nothing');
                 // No navigation for search items
+                handleFriendSelect(item);
               }}
             >
               <Image source={item.image} style={styles.itemImage} />
               <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-              </View>
-              <View style={styles.priceContainer}>
-                <Text style={styles.itemPrice}>{item.price}</Text>
+                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
           </View>
@@ -397,8 +676,16 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       easing: Easing.inOut(Easing.ease)
     });
     
-    // Just toggle view - no animation concerns
+    // Toggle the view without an explicit button
     toggleView();
+  };
+
+  // Get the recommendations for the selected friend, preferring custom recommendations if available
+  const getRecommendationsForFriend = (friendId: number): RecommendedItem[] => {
+    if (customRecommendations[friendId] && customRecommendations[friendId].length > 0) {
+      return customRecommendations[friendId];
+    }
+    return recommendedItems[friendId] || [];
   };
 
   // Don't render until interactions are complete
@@ -417,98 +704,91 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   // Simplified render method
   return (
     <View style={styles.container}>
-      {/* Main view */}
-      {Platform.OS === 'ios' ? (
-        <Animated.View style={mainViewAnimatedStyle}>
-          <MainContent 
-            activeView={activeView}
-            toggleSearch={toggleSearch}
-            handleBottomBoxPressIn={handleBottomBoxPressIn}
-            handleBottomBoxPressOut={handleBottomBoxPressOut}
-            bottomBoxAnimatedStyle={bottomBoxAnimatedStyle}
-            renderItem={renderItem}
-            savedItems={savedItems}
-            friendItems={friendItems}
-            handleNavigate={handleNavigate}
-          />
-        </Animated.View>
-      ) : (
-        <View style={[
-          styles.absoluteFill,
-          { display: isSearchActive ? 'none' : 'flex' }
-        ]}>
-          <MainContent 
-            activeView={activeView}
-            toggleSearch={toggleSearch}
-            handleBottomBoxPressIn={handleBottomBoxPressIn}
-            handleBottomBoxPressOut={handleBottomBoxPressOut}
-            bottomBoxAnimatedStyle={bottomBoxAnimatedStyle}
-            renderItem={renderItem}
-            savedItems={savedItems}
-            friendItems={friendItems}
-            handleNavigate={handleNavigate}
-          />
+      {!isReady ? (
+        // Simple loading screen until heavy animations are ready
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      )}
-      
-      {/* Search view */}
-      {Platform.OS === 'ios' ? (
-        <Animated.View style={searchViewAnimatedStyle}>
-          <SearchContent 
-            searchQuery={searchQuery}
-            handleSearch={handleSearch}
-            toggleSearch={toggleSearch}
-            filteredFriends={filteredFriends}
-            renderSearchItem={renderSearchItem}
-          />
-        </Animated.View>
       ) : (
-        <View style={[
-          styles.absoluteFill,
-          { display: isSearchActive ? 'flex' : 'none' }
-        ]}>
-          <SearchContent 
-            searchQuery={searchQuery}
-            handleSearch={handleSearch}
-            toggleSearch={toggleSearch}
-            filteredFriends={filteredFriends}
-            renderSearchItem={renderSearchItem}
-          />
-        </View>
+        <>
+          {/* Main Content (visible by default) */}
+          <Animated.View style={mainViewAnimatedStyle}>
+            <MainContent 
+              activeView={activeView}
+              toggleSearch={toggleSearch}
+              handleBottomBoxPressIn={handleBottomBoxPressIn}
+              handleBottomBoxPressOut={handleBottomBoxPressOut}
+              bottomBoxAnimatedStyle={bottomBoxAnimatedStyle}
+              renderSavedItem={renderSavedItem}
+              renderFriendItem={renderFriendItem}
+              savedItems={savedItems}
+              friendItems={friendItems}
+              handleNavigate={handleNavigate}
+            />
+          </Animated.View>
+          
+          {/* Search Content (hidden by default) */}
+          <Animated.View style={searchViewAnimatedStyle}>
+            <SearchContent 
+              searchQuery={searchQuery}
+              handleSearch={handleSearch}
+              toggleSearch={toggleSearch}
+              filteredFriends={filteredFriends as any[]} // Type cast for compatibility
+              renderSearchItem={renderSearchItem as any} // Type cast for compatibility
+            />
+          </Animated.View>
+
+          {/* Friend Profile View (hidden by default) */}
+          <Animated.View style={profileViewAnimatedStyle}>
+            {selectedFriend && (
+              <FriendProfileView
+                key={`friend-profile-${selectedFriend.id}`}
+                friend={selectedFriend}
+                onBack={handleBackFromProfile}
+                recommendedItems={getRecommendationsForFriend(selectedFriend.id)}
+                renderRecommendedItem={renderRecommendedItem}
+                onRegenerate={handleRegenerateRecommendations}
+                isRegenerating={isRegenerating}
+              />
+            )}
+          </Animated.View>
+        </>
       )}
     </View>
   );
 };
 
-// Define prop types for extracted components
+// Define the interfaces for our extracted components
 interface MainContentProps {
   activeView: 'friends' | 'saved';
   toggleSearch: () => void;
   handleBottomBoxPressIn: () => void;
   handleBottomBoxPressOut: () => void;
-  bottomBoxAnimatedStyle: any; // Animated style object
-  renderItem: ({ item, index }: { item: FavoriteItem, index: number }) => React.ReactElement;
+  bottomBoxAnimatedStyle: any;
+  renderSavedItem: ({ item, index }: { item: FavoriteItem, index: number }) => JSX.Element;
+  renderFriendItem: ({ item, index }: { item: FriendItem, index: number }) => JSX.Element;
   savedItems: FavoriteItem[];
-  friendItems: FavoriteItem[];
-  handleNavigate: (screen: string, item?: FavoriteItem, isSavedItem?: boolean) => void;
+  friendItems: FriendItem[];
+  handleNavigate: (screen: string, params?: any, fromFavorites?: boolean) => void;
 }
 
 interface BottomBoxContentProps {
   activeView: 'friends' | 'saved';
   handleBottomBoxPressIn: () => void;
   handleBottomBoxPressOut: () => void;
-  renderItem: ({ item, index }: { item: FavoriteItem, index: number }) => React.ReactElement;
+  renderSavedItem: ({ item, index }: { item: FavoriteItem, index: number }) => JSX.Element;
+  renderFriendItem: ({ item, index }: { item: FriendItem, index: number }) => JSX.Element;
   savedItems: FavoriteItem[];
-  friendItems: FavoriteItem[];
-  handleNavigate: (screen: string, item?: FavoriteItem, isSavedItem?: boolean) => void;
+  friendItems: FriendItem[];
+  handleNavigate: (screen: string, params?: any, fromFavorites?: boolean) => void;
 }
 
 interface SearchContentProps {
   searchQuery: string;
   handleSearch: (text: string) => void;
   toggleSearch: () => void;
-  filteredFriends: FavoriteItem[];
-  renderSearchItem: ({ item, index }: { item: FavoriteItem, index: number }) => React.ReactElement;
+  filteredFriends: any[]; // Update to accept any array type
+  renderSearchItem: ({ item, index }: { item: any, index: number }) => JSX.Element; // Update to accept any item type
 }
 
 // Extracted component for main content to reduce render complexity
@@ -518,12 +798,12 @@ const MainContent = ({
   handleBottomBoxPressIn, 
   handleBottomBoxPressOut,
   bottomBoxAnimatedStyle,
-  renderItem,
+  renderSavedItem,
+  renderFriendItem,
   savedItems,
   friendItems,
   handleNavigate
 }: MainContentProps) => {
-  console.log('MainContent - activeView:', activeView);
   return (
   <>
     {/* Top Box (Friends by default) */}
@@ -535,20 +815,37 @@ const MainContent = ({
     //exiting={FadeOutDown.duration(50)}
     >
       <View style={{ flex: 1, borderRadius: 41 }}>
-        <FlatList
-          style={styles.flatList}
-          data={activeView === 'friends' ? friendItems : savedItems}
-          renderItem={renderItem}
-          keyExtractor={item => item.id.toString()}
-          showsVerticalScrollIndicator={false}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
-          contentContainerStyle={styles.listContent}
-          removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
-          initialNumToRender={4} // Only render what's visible initially
-          maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
-          windowSize={5} // Reduce window size for performance
-        />
+        {activeView === 'friends' ? (
+          <FlatList<FriendItem>
+            style={styles.flatList}
+            data={friendItems}
+            renderItem={renderFriendItem}
+            keyExtractor={item => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            numColumns={2}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={styles.listContent}
+            removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
+            initialNumToRender={4} // Only render what's visible initially
+            maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
+            windowSize={5} // Reduce window size for performance
+          />
+        ) : (
+          <FlatList<FavoriteItem>
+            style={styles.flatList}
+            data={savedItems}
+            renderItem={renderSavedItem}
+            keyExtractor={item => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            numColumns={2}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={styles.listContent}
+            removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
+            initialNumToRender={4} // Only render what's visible initially
+            maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
+            windowSize={5} // Reduce window size for performance
+          />
+        )}
         <View style={styles.titleRow}>
           <Text style={styles.boxTitle}>
             {activeView === 'friends' ? 'ДРУЗЬЯ' : 'СОХРАНЁНКИ'}
@@ -576,7 +873,8 @@ const MainContent = ({
             activeView={activeView}
             handleBottomBoxPressIn={handleBottomBoxPressIn}
             handleBottomBoxPressOut={handleBottomBoxPressOut}
-            renderItem={renderItem}
+            renderSavedItem={renderSavedItem}
+            renderFriendItem={renderFriendItem}
             savedItems={savedItems}
             friendItems={friendItems}
             handleNavigate={handleNavigate}
@@ -588,7 +886,8 @@ const MainContent = ({
             activeView={activeView}
             handleBottomBoxPressIn={handleBottomBoxPressIn}
             handleBottomBoxPressOut={handleBottomBoxPressOut}
-            renderItem={renderItem}
+            renderSavedItem={renderSavedItem}
+            renderFriendItem={renderFriendItem}
             savedItems={savedItems}
             friendItems={friendItems}
             handleNavigate={handleNavigate}
@@ -605,108 +904,45 @@ const BottomBoxContent = ({
   activeView,
   handleBottomBoxPressIn,
   handleBottomBoxPressOut,
-  renderItem,
+  renderSavedItem,
+  renderFriendItem,
   savedItems,
   friendItems,
   handleNavigate
 }: BottomBoxContentProps) => {
-  console.log('BottomBoxContent - activeView:', activeView);
-  
-  // FOR BOTTOM BOX: If top shows friends, bottom shows saved (and vice versa)
-  // This ensures the bottom box always shows the OPPOSITE of what's in the top box
-  const dataToShow = activeView === 'friends' ? savedItems : friendItems;
-  console.log('BottomBoxContent - showing items:', dataToShow.map(item => item.name));
-  
   return (
   <Pressable 
     style={styles.bottomBoxContent} 
     onPressIn={handleBottomBoxPressIn}
     onPressOut={handleBottomBoxPressOut}
   >
-    <FlatList
-      data={dataToShow.slice(0, 2)}
-      renderItem={({ item, index }) => {
-        // Force the correct "isSavedItem" value based on what's showing in this box
-        // If we're showing saved items in bottom box (when friends are in top)
-        const isSavedItem = activeView === 'friends';
-        console.log(`Bottom box item ${item.name}, isSavedItem forced to: ${isSavedItem}`);
-        
-        // Simple static rendering for Android
-        if (!USE_ANIMATIONS) {
-          return (
-            <View style={styles.itemWrapper}>
-              <View style={styles.itemContainer}>
-                <Pressable 
-                  style={styles.imageContainer}
-                  onPress={() => {
-                    console.log(`Bottom box item pressed: ${item.name}, isSavedItem: ${isSavedItem}`);
-                    if (isSavedItem) {
-                      // Only saved items navigate with params
-                      console.log('Navigating with saved item from bottom box:', item);
-                      handleNavigate('Home', item, true);
-                    } else {
-                      // Friend items do nothing
-                      console.log('Friend item pressed in bottom box - doing nothing');
-                    }
-                  }}
-                >
-                  <Image source={item.image} style={styles.itemImage} />
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.itemPrice}>{item.price}</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-          );
-        }
-        
-        // More complex animations for iOS
-        return (
-          <View style={styles.itemWrapper}>
-            <Animated.View
-              entering={FadeInDown.duration(400).delay(100 + index * 50)}
-              exiting={FadeOutDown.duration(50)}
-            >
-              <View style={styles.itemContainer}>
-                <Pressable 
-                  style={styles.imageContainer}
-                  onPress={() => {
-                    console.log(`Bottom box item pressed: ${item.name}, isSavedItem: ${isSavedItem}`);
-                    if (isSavedItem) {
-                      // Only saved items navigate with params
-                      console.log('Navigating with saved item from bottom box:', item);
-                      handleNavigate('Home', item, true);
-                    } else {
-                      // Friend items do nothing
-                      console.log('Friend item pressed in bottom box - doing nothing');
-                    }
-                  }}
-                >
-                  <Image source={item.image} style={styles.itemImage} />
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.itemPrice}>{item.price}</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </Animated.View>
-          </View>
-        );
-      }}
-      keyExtractor={item => item.id.toString()}
-      showsVerticalScrollIndicator={false}
-      numColumns={2}
-      columnWrapperStyle={styles.columnWrapper}
-      contentContainerStyle={styles.previewListContent}
-      scrollEnabled={false}
-      removeClippedSubviews={Platform.OS === 'android'} // Android optimization
-      maxToRenderPerBatch={2} // Keep it small
-    />
+    {activeView === 'friends' ? (
+      <FlatList<FavoriteItem>
+        data={savedItems.slice(0, 2)}
+        renderItem={renderSavedItem}
+        keyExtractor={item => item.id.toString()}
+        showsVerticalScrollIndicator={false}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
+        contentContainerStyle={styles.previewListContent}
+        scrollEnabled={false}
+        removeClippedSubviews={Platform.OS === 'android'} // Android optimization
+        maxToRenderPerBatch={2} // Keep it small
+      />
+    ) : (
+      <FlatList<FriendItem>
+        data={friendItems.slice(0, 2)}
+        renderItem={renderFriendItem}
+        keyExtractor={item => item.id.toString()}
+        showsVerticalScrollIndicator={false}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
+        contentContainerStyle={styles.previewListContent}
+        scrollEnabled={false}
+        removeClippedSubviews={Platform.OS === 'android'} // Android optimization
+        maxToRenderPerBatch={2} // Keep it small
+      />
+    )}
     <Text style={styles.boxTitle}>
       {activeView === 'friends' ? 'СОХРАНЁНКИ' : 'ДРУЗЬЯ'}
     </Text>
@@ -724,7 +960,7 @@ const SearchContent = ({
 }: SearchContentProps) => (
   <>
     {/* Search Input */}
-    <View style={styles.searchContainer}>
+    <Animated.View style={styles.searchContainer} entering={FadeInDown.duration(500)} exiting={FadeOutDown.duration(50)}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <TextInput
           style={styles.searchInput}
@@ -741,17 +977,17 @@ const SearchContent = ({
           <Text style={styles.cancelButtonText}>Отмена</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
 
     {/* Search Results */}
-    <View style={styles.searchResultsBox}>
+    <Animated.View style={styles.searchResultsBox} entering={FadeInDown.duration(50).delay(100)} exiting={FadeOutDown.duration(50)}>
       <View style={{ flex: 1 }}>
         {searchQuery.length === 0 ? (
           <Text style={styles.noResultsText}>Начните искать</Text>
         ) : (filteredFriends.length === 0 ? (
           <Text style={styles.noResultsText}>No results found</Text>
         ) : (
-          <FlatList
+          <FlatList<any>
             style={styles.flatList}
             data={filteredFriends}
             renderItem={renderSearchItem}
@@ -767,14 +1003,14 @@ const SearchContent = ({
           />
         ))}
       </View>
-    </View>
+    </Animated.View>
     
     {/* Shrunken Top Box */}
-    <View style={[
+    <Animated.View style={[
       styles.topBox,
       styles.searchModeTopBox,
       { backgroundColor: '#C8A688' }
-    ]}>
+    ]} entering={FadeInDown.duration(500).delay(50)} exiting={FadeOutDown.duration(50)}>
       <View style={styles.titleRow}>
         <Text style={styles.boxTitle}>
           ДРУЗЬЯ
@@ -783,9 +1019,229 @@ const SearchContent = ({
           <PlusSvg width={24} height={24} fill="#FFF" />
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   </>
 );
+
+// Define interface for Friend Profile View props
+interface FriendProfileViewProps {
+  friend: FriendItem;
+  onBack: () => void;
+  recommendedItems: RecommendedItem[];
+  renderRecommendedItem: ({ item, index }: { item: RecommendedItem, index: number }) => JSX.Element;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
+}
+
+// Friend Profile View Component
+const FriendProfileView = React.memo(({ 
+  friend, 
+  onBack, 
+  recommendedItems, 
+  renderRecommendedItem,
+  onRegenerate,
+  isRegenerating
+}: FriendProfileViewProps) => {
+  // Track whether recommendations have been regenerated for animation purposes
+  const [isNewRecommendation, setIsNewRecommendation] = useState(false);
+  
+  // Store the recommendedItems in a ref to avoid unnecessary effect triggers
+  const prevItemsRef = useRef<RecommendedItem[]>([]);
+  
+  // Animated values for button spinning effect
+  const [isSpinning, setIsSpinning] = useState(false);
+  const borderSpinValue = useRef(new RNAnimated.Value(0)).current;
+  const buttonScaleValue = useRef(new RNAnimated.Value(1)).current;
+  
+  // Map 0-1 animation value to a full 720 degree rotation (two spins)
+  const borderSpin = borderSpinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '720deg']
+  });
+  
+  // Handle regenerate button press with spinning border animation
+  const handleRegeneratePress = () => {
+    if (isSpinning || isRegenerating) return; // Prevent multiple presses during animation
+    
+    // Start spinning and regeneration process immediately
+    setIsSpinning(true);
+    
+    // Start regeneration process immediately rather than waiting for animation to complete
+    onRegenerate();
+    
+    // Reset spin value to 0
+    borderSpinValue.setValue(0);
+    
+    // Create scale down/up sequence with spinning border
+    RNAnimated.sequence([
+      // Scale down button slightly
+      RNAnimated.timing(buttonScaleValue, {
+        toValue: 0.95,
+        duration: 150,
+        useNativeDriver: true,
+        easing: RNEasing.out(RNEasing.cubic),
+      }),
+      // Spin border with acceleration and deceleration
+      RNAnimated.timing(borderSpinValue, {
+        toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+        easing: RNEasing.inOut(RNEasing.cubic), // Accelerate and decelerate smoothly
+      }),
+      // Scale back up
+      RNAnimated.timing(buttonScaleValue, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+        easing: RNEasing.out(RNEasing.cubic),
+      })
+    ]).start(() => {
+      // Animation completed - just clear spinning flag
+      // but don't trigger onRegenerate again as we've already called it
+      setIsSpinning(false);
+    });
+  };
+  
+  // Reset the new recommendation flag when items change
+  useEffect(() => {
+    // Only trigger the animation when items actually change (not on initial render)
+    const itemsChanged = prevItemsRef.current.length > 0 && 
+      JSON.stringify(prevItemsRef.current) !== JSON.stringify(recommendedItems);
+    
+    if (recommendedItems.length > 0 && itemsChanged) {
+      setIsNewRecommendation(true);
+      
+      // Reset the flag after animation duration
+      const timer = setTimeout(() => {
+        setIsNewRecommendation(false);
+      }, 1500);
+      
+      // Update the ref
+      prevItemsRef.current = [...recommendedItems];
+      
+      return () => clearTimeout(timer);
+    } else if (recommendedItems.length > 0) {
+      // Initial store
+      prevItemsRef.current = [...recommendedItems];
+    }
+  }, [recommendedItems]);
+  
+  // Create a memoized render function to avoid unnecessary re-renders
+  const renderItem = React.useCallback(({ item, index }: { item: RecommendedItem, index: number }) => {
+    return renderRecommendedItem({ item, index });
+  }, [renderRecommendedItem, isNewRecommendation]); // Only re-create when these dependencies change
+  
+  return (
+    <Animated.View style={styles.profileContainer} entering={FadeInDown.duration(500)} exiting={FadeOutDown.duration(50)}>
+      {/* Header with back button */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={onBack}
+        activeOpacity={0.7}
+      >
+        <BackIcon width={33} height={33} />
+      </TouchableOpacity>
+
+      {/* Profile info */}
+      <View style={styles.profileInfo}>
+        <View style={styles.profileImageContainer}>
+          <Image source={friend.image} style={styles.profileImage} />
+        </View>
+      </View>
+
+      <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.regenerateButtonWrapper}>
+        {/* Container for the button - this stays still */}
+        <View style={styles.regenerateButtonContainer}>
+          {/* Spinning border gradient */}
+          <RNAnimated.View
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'absolute',
+              borderRadius: 30,
+              transform: [{ rotate: borderSpin }],
+            }}
+          >
+            <LinearGradient
+              colors={['#FC8CAF', '#9EA7FF', '#A3FFD0']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.regenerateButtonBorder}
+            />
+          </RNAnimated.View>
+          
+          {/* Button itself - scales but doesn't spin */}
+          <RNAnimated.View
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: 3, // Match border thickness
+              transform: [{ scale: buttonScaleValue }],
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleRegeneratePress}
+              disabled={isSpinning || isRegenerating}
+              style={styles.pressableContainer}
+            >
+              <LinearGradient
+                colors={['#E222F0', '#4747E4', '#E66D7B']}
+                locations={[0.15, 0.56, 1]}
+                start={{ x: 0.48, y: 1 }}
+                end={{ x: 0.52, y: 0 }}
+                style={styles.regenerateButtonGradient}
+              >
+                <Text style={styles.regenerateButtonText}>
+                  {isRegenerating || isSpinning ? 'ЗАГРУЗКА...' : 'Сделать AI подборку'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </RNAnimated.View>
+        </View>
+      </Animated.View>
+
+      <Animated.View style={styles.roundedBox} entering={FadeInDown.duration(500).delay(100)} exiting={FadeOutDown.duration(50)}>
+        <LinearGradient
+          colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+          start={{ x: 0.1, y: 1 }}
+          end={{ x: 0.9, y: 0.3 }}
+          style={styles.gradientBackground}
+        />
+        {/* Recommendations section */}
+        <Animated.View style={styles.recommendationsContainer} entering={FadeInDown.duration(500).delay(150)}>
+          
+          {isRegenerating ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Подбираем новые рекомендации...</Text>
+            </View>
+          ) : (
+            <FlatList<RecommendedItem>
+              style={styles.recommendationsList}
+              data={recommendedItems}
+              renderItem={renderItem}
+              keyExtractor={item => item.id.toString()}
+              showsVerticalScrollIndicator={false}
+              numColumns={2}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={styles.listContent}
+              removeClippedSubviews={Platform.OS === 'android'}
+              initialNumToRender={4}
+              maxToRenderPerBatch={4}
+              windowSize={5}
+            />
+          )}
+        </Animated.View> 
+        <Animated.View 
+            style={styles.textContainer}
+          >
+            <Text style={styles.text}>
+              {friend.username}
+            </Text>
+          </Animated.View>
+      </Animated.View>
+    </Animated.View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -899,7 +1355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   itemContainer: {
-    width: (width * 0.88 - 40) / 2, // Calculate width for two columns with spacing
+    width: '100%', // Calculate width for two columns with spacing
     marginBottom: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -999,7 +1455,7 @@ const styles = StyleSheet.create({
   searchResultsBox: {
     position: 'absolute',
     left: '6%',
-    top: Platform.OS === 'ios' ? height * 0.146 : height * 0.166,
+    top: Platform.OS === 'ios' ? height * 0.145 : height * 0.166,
     zIndex: 8,
     width: '88%',
     height: Platform.OS === 'ios' ? height * 0.57 : height * 0.56,
@@ -1020,12 +1476,177 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   itemWrapper: {
-    width: (width * 0.88 - 40) / 2, // Match parent container width
-    marginBottom: 15,
+    width: (width * 0.88 - 40) / 2,
+    //marginBottom: 15,
   },
   searchItemWrapper: {
     width: '47%',
-    marginBottom: 17,
+    //marginBottom: 17,
+  },
+  usernameContainer: {
+    position: 'absolute',
+    right: -25,
+    top: '50%',
+    transform: [{ translateY: -20 }, { rotate: '90deg' }],
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  usernameText: {
+    fontFamily: 'REM',
+    fontSize: 14,
+    color: '#4A3120',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  toggleButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? height * 0.02 : height * 0.04,
+    right: 10,
+    padding: 10,
+    backgroundColor: '#C8A688',
+    borderRadius: 41,
+  },
+  toggleButtonText: {
+    fontFamily: 'Igra Sans',
+    fontSize: 18,
+    color: '#FFF',
+  },
+  // Friend Profile styles
+  profileContainer: {
+    width: '88%',
+    height: '92%',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 0,
+    left: 10,
+    zIndex: 10,
+    width: 33,
+    height: 33,
+  },
+  profileInfo: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileImageContainer: {
+    width: 112,
+    height: 112,
+    borderRadius: 41,
+    overflow: 'hidden',
+    backgroundColor: '#EDE7E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  profileImage: {
+    width: '75%',
+    height: '75%',
+    resizeMode: 'cover',
+    borderRadius: 60,
+  },
+  roundedBox: {
+    width: '100%',
+    height: '70%',
+    borderRadius: 41,
+    backgroundColor: 'rgba(205, 166, 122, 0)',
+    position: 'relative',
+    borderWidth: 3,
+    borderColor: 'rgba(205, 166, 122, 0.4)',
+  },
+  gradientBackground: {
+    borderRadius: 37,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
+  },
+  recommendationsContainer: {
+    backgroundColor: '#F2ECE7',
+    borderRadius: 41,
+    width: width * 0.88,
+    top: -3,
+    left: -3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+    height: '83%',
+  },
+  recommendationsList: {
+    flex: 1,
+    borderRadius: 41,
+    padding: 15,
+  },
+  regenerateButtonWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    marginBottom: 20,
+  },
+  regenerateButtonContainer: {
+    width: 280, // Fixed width to ensure consistent size
+    height: 65, // Fixed height for the button
+    borderRadius: 30,
+    overflow: 'hidden',
+    ...Platform.select({
+      android: {
+        elevation: 8,
+      }
+    }),
+    position: 'relative',
+  },
+  regenerateButtonBorder: {
+    flex: 1,
+    borderRadius: 30,
+    zIndex: 5,
+  },
+  pressableContainer: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 27,
+    overflow: 'hidden',
+  },
+  regenerateButtonGradient: {
+    flex: 1,
+    borderRadius: 27, // Slightly smaller to create border effect
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    overflow: 'hidden',
+  },
+  regenerateButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
+  },
+  regenerateButtonDisabled: {
+    backgroundColor: '#8F7A66',
+    opacity: 0.8,
+  },
+  textContainer: {
+    position: 'absolute',
+    bottom: 0,
+    marginBottom: 18,
+    marginLeft: 27,
+  },
+  text: {
+    fontFamily: 'IgraSans',
+    fontSize: 38,
+    color: '#fff',
   },
 });
 

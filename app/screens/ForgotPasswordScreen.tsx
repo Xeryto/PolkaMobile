@@ -29,18 +29,20 @@ interface ForgotPasswordScreenProps {
 }
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBack }) => {
-  const [email, setEmail] = useState('');
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const illegalCharRegex = /[^a-zA-Z0-9#$-_!]/; // Only allow letters, numbers, and #$-_!
   
   // Validate email
   const validateEmail = () => {
-    if (!email.trim()) {
-      setError('Email обязателен');
+    if (!usernameOrEmail.trim()) {
+      setError('Ник или email обязателен');
       return false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setError('Email некорректен');
+    } else if (illegalCharRegex.test(usernameOrEmail)) {
+      setError('Ник или email содержит недопустимые символы');
       return false;
     }
     
@@ -57,7 +59,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBack }) =
     
     try {
       // Call the API to initiate password reset
-      const success = await api.simulateResetPassword(email);
+      const success = await api.simulateResetPassword(usernameOrEmail);
       
       setIsLoading(false);
       
@@ -146,16 +148,16 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBack }) =
                 <>
                   <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(50)}>
                     <View style={styles.inputContainer}>
-                      <TextInput
-                        style={[styles.input, error ? styles.inputError : null]}
-                        placeholder="Email или ник"
-                        placeholderTextColor="rgba(0, 0, 0, 1)"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        keyboardType="email-address"
-                        value={email}
-                        onChangeText={setEmail}
-                      />
+                    <TextInput
+                  style={[styles.input, error ? styles.inputError : null]}
+                  placeholder="Ник/Email"
+                  placeholderTextColor="rgba(0, 0, 0, 1)"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                  value={usernameOrEmail}
+                  onChangeText={setUsernameOrEmail}
+                  />
                     </View>
                     {error ? (
                   <Text style={styles.errorText}>{error}</Text>

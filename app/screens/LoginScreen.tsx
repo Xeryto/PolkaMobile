@@ -46,7 +46,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onForgotPass
     let valid = true;
     const newErrors = { usernameOrEmail: '', password: '', general: '' };
 
-    const illegalCharRegex = /[^a-zA-Z0-9@#$-_!]/; // Only allow letters, numbers, and @#$-_!
+    const illegalCharRegex = /[^a-zA-Z0-9#$-_!]/; // Only allow letters, numbers, and @#$-_!
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
     
     // Validate username/email

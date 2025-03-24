@@ -140,6 +140,7 @@ interface HeartButtonProps {
 const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
   // Local animation state
   const heartScale = useRef(new RNAnimated.Value(1)).current;
+  const pressScale = useRef(new RNAnimated.Value(1)).current;
   const [isAnimating, setIsAnimating] = useState(false);
   
   // Track internal version of isLiked for debugging
@@ -150,6 +151,29 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
     console.log(`HeartButton - Props changed: isLiked=${isLiked}`);
     setInternalIsLiked(isLiked);
   }, [isLiked]);
+  
+  // Handle heart button press-in animation
+  const handlePressIn = () => {
+    RNAnimated.timing(pressScale, {
+      toValue: 0.85,
+      duration: 80,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+  };
+  
+  // Handle heart button press-out animation
+  const handlePressOut = () => {
+    RNAnimated.timing(pressScale, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+    
+    // Call the actual press handler
+    handlePress();
+  };
   
   // Handle heart button press
   const handlePress = () => {
@@ -204,16 +228,19 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
   return (
     <Pressable 
       style={[styles.button, { zIndex: 10 }]} // Added zIndex to ensure button is clickable
-      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       android_ripple={{ color: 'rgba(0,0,0,0.1)', radius: 20, borderless: true }}
       hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
     >
-      <RNAnimated.View style={{ transform: [{ scale: heartScale }] }}>
-        {isLiked ? (
-          <HeartFilled width={33} height={33} />
-        ) : (
-          <Heart2 width={33} height={33} />
-        )}
+      <RNAnimated.View style={{ transform: [{ scale: pressScale }] }}>
+        <RNAnimated.View style={{ transform: [{ scale: heartScale }] }}>
+          {isLiked ? (
+            <HeartFilled width={33} height={33} />
+          ) : (
+            <Heart2 width={33} height={33} />
+          )}
+        </RNAnimated.View>
       </RNAnimated.View>
     </Pressable>
   );
@@ -245,6 +272,10 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
 
+  // Animation state for buttons
+  const cartButtonScale = useRef(new RNAnimated.Value(1)).current;
+  const seenButtonScale = useRef(new RNAnimated.Value(1)).current;
+  
   // Initialize with default items but only once
   const [cards, setCards] = useState<CardItem[]>(() => {
     // If we already have cards in our persistent storage, use those
@@ -472,6 +503,52 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     fadeOutIn();
   };
 
+  // Handle cart button press-in animation
+  const handleCartPressIn = () => {
+    RNAnimated.timing(cartButtonScale, {
+      toValue: 0.85,
+      duration: 80,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+  };
+  
+  // Handle cart button press-out animation
+  const handleCartPressOut = () => {
+    RNAnimated.timing(cartButtonScale, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+    
+    // Call the actual press handler
+    handleCartPress();
+  };
+  
+  // Handle seen button press-in animation
+  const handleSeenPressIn = () => {
+    RNAnimated.timing(seenButtonScale, {
+      toValue: 0.85,
+      duration: 80,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+  };
+  
+  // Handle seen button press-out animation
+  const handleSeenPressOut = () => {
+    RNAnimated.timing(seenButtonScale, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease)
+    }).start();
+    
+    // Call the actual press handler
+    swipeCard('up');
+  };
+
   const handleCartPress = () => {
     // Animate buttons out and size selection in
     RNAnimated.parallel([
@@ -607,14 +684,24 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             }
           ]}
         >
-          <Pressable style={styles.button} onPress={handleCartPress}>
-            <Cart2 width={33} height={33} />
-          </Pressable>
           <Pressable 
             style={styles.button} 
-            onPress={() => swipeCard('up')}
+            onPressIn={handleCartPressIn}
+            onPressOut={handleCartPressOut}
           >
-            <Seen width={33} height={33} />
+            <RNAnimated.View style={{ transform: [{ scale: cartButtonScale }] }}>
+              <Cart2 width={33} height={33} />
+            </RNAnimated.View>
+          </Pressable>
+          
+          <Pressable 
+            style={styles.button}
+            onPressIn={handleSeenPressIn}
+            onPressOut={handleSeenPressOut}
+          >
+            <RNAnimated.View style={{ transform: [{ scale: seenButtonScale }] }}>
+              <Seen width={33} height={33} />
+            </RNAnimated.View>
           </Pressable>
           
           {/* Use HeartButton with explicit index */}
@@ -695,9 +782,9 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       const newItem = route.params.addCardItem;
       console.log('MainPage - Received item from Favorites:', newItem);
       
-      // For saved items from Favorites or Search, they should be liked by default
-      // unless explicitly set
-      const isItemLiked = newItem.isLiked !== undefined ? newItem.isLiked : true;
+      // Check if isLiked property is explicitly defined
+      // If it's not defined, we'll use false as the default now instead of true
+      const isItemLiked = newItem.isLiked !== undefined ? newItem.isLiked : false;
       
       // Generate a unique timestamp to ensure we can add the same item multiple times
       // but still track and remove duplicates if we need to
