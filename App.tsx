@@ -18,6 +18,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as cartStorage from './app/cartStorage';
 import * as api from './app/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
 import Search from './app/assets/Search.svg'; // Adjust the path as needed
@@ -242,16 +243,27 @@ export default function App() {
 
   const handleLoadingFinish = () => {
     setShowLoading(false);
+    
+    // Ensure we start on the Home screen after login
+    setCurrentScreen('Home');
   };
 
   const handleAuthLoadingFinish = () => {
     // Hide the auth loading screen
     setShowAuthLoading(false);
     console.log('Auth loading screen finished, hiding it');
+    
+    // If the user just logged in, make sure we're on the Home screen
+    if (isLoggedIn) {
+      setCurrentScreen('Home');
+    }
   };
 
   const handleLogin = async () => {
     console.log('Login initiated');
+    
+    // Reset to Home screen when logging back in
+    setCurrentScreen('Home');
     
     // Check profile completion status after login
     try {
@@ -348,6 +360,10 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // Remember that we want to return to Home screen after next login
+      // This is a more comprehensive approach than just setting in handleLogin
+      await AsyncStorage.setItem('@PolkaMobile:lastScreen', 'Home');
+      
       // Clear cart data when logging out
       await cartStorage.clearCart();
       
@@ -603,7 +619,14 @@ export default function App() {
   if (showConfirmationScreen) {
     return (
       <GestureHandlerRootView style={{flex: 1}}>
-        <ConfirmationScreen onComplete={handleConfirmationComplete} />
+        <ConfirmationScreen 
+          onComplete={handleConfirmationComplete} 
+          onBack={() => {
+            // Go back to welcome screen (logout)
+            setIsLoggedIn(false);
+            setShowConfirmationScreen(false);
+          }}
+        />
         <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>
     );
@@ -614,7 +637,11 @@ export default function App() {
       <GestureHandlerRootView style={{flex: 1}}>
         <BrandSearchScreen 
           onComplete={handleBrandSearchComplete}
-          stylePreference={stylePreference || 'option1'}
+          onBack={() => {
+            // Go back to confirmation screen
+            setShowBrandSearchScreen(false);
+            setShowConfirmationScreen(true);
+          }}
         />
         <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>
@@ -626,7 +653,11 @@ export default function App() {
       <GestureHandlerRootView style={{flex: 1}}>
         <StylesSelectionScreen 
           onComplete={handleStylesSelectionComplete}
-          stylePreference={stylePreference || 'option1'}
+          onBack={() => {
+            // Go back to brand search screen
+            setShowStylesSelectionScreen(false);
+            setShowBrandSearchScreen(true);
+          }}
         />
         <AuthLoadingScreen onFinish={handleAuthLoadingFinish} />
       </GestureHandlerRootView>

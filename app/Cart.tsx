@@ -88,7 +88,7 @@ const Cart = ({ navigation }: CartProps) => {
         style={styles.roundedBox}
       >
         <LinearGradient
-          colors={["rgba(205, 166, 122, 0.4)", "rgba(205, 166, 122, 0)"]}
+          colors={["rgba(205, 166, 122, 0.4)", "transparent"]}
           start={{ x: 0, y: 1 }}
           end={{ x: 1, y: 0.3 }}
           style={styles.gradientBackground}

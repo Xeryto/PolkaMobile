@@ -10,12 +10,14 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import VK from '../assets/VK.svg';
+import BackIcon from '../assets/Back.svg';
 import { Dimensions } from 'react-native';
 import * as api from '../services/api';
 
@@ -26,9 +28,10 @@ const LOGO_SIZE = Math.min(width, height) * 0.3; // 25% of the smallest dimensio
 interface LoginScreenProps {
   onLogin: () => void;
   onBack: () => void;
+  onForgotPassword: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onForgotPassword }) => {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({
@@ -42,21 +45,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
   const validateForm = () => {
     let valid = true;
     const newErrors = { usernameOrEmail: '', password: '', general: '' };
+
+    const illegalCharRegex = /[^a-zA-Z0-9@#$-_!]/; // Only allow letters, numbers, and @#$-_!
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
     
     // Validate username/email
     if (!usernameOrEmail.trim()) {
-      newErrors.usernameOrEmail = 'Username or email is required';
+      newErrors.usernameOrEmail = 'Ник или email обязателен';
+      valid = false;
+    } else if (illegalCharRegex.test(usernameOrEmail)) {
+      newErrors.usernameOrEmail = 'Ник или email содержит недопустимые символы';
       valid = false;
     }
     
     // Validate password
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Пароль обязателен';
       valid = false;
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Пароль должен быть не менее 6 символов';
       valid = false;
-    }
+    } else if (!passwordRegex.test(password)) {
+      newErrors.password = 'Пароль должен содержать буквы и цифры';
+      valid = false;
+    } 
     
     setErrors(newErrors);
     return valid;
@@ -81,7 +93,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
     } catch (error) {
       setIsLoading(false);
       
-      let errorMessage = 'Login failed. Please check your credentials and try again.';
+      let errorMessage = 'Ошибка входа. Попробуйте позже.';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
@@ -116,14 +128,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View 
-              entering={FadeIn.duration(800)}
+              entering={FadeInDown.duration(500)}
               style={styles.formContainer}
             >
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={onBack}
+                activeOpacity={0.7}
               >
-                <Text style={styles.backButtonText}>← Back</Text>
+                <BackIcon width={33} height={33} />
               </TouchableOpacity>
               
               <View 
@@ -137,7 +150,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
                 </View>
               ) : null}
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(50)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                   style={[styles.input, errors.usernameOrEmail ? styles.inputError : null]}
@@ -153,9 +166,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
               {errors.usernameOrEmail ? (
                   <Text style={styles.errorText}>{errors.usernameOrEmail}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(100)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.password ? styles.inputError : null]}
@@ -169,28 +182,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
                 {errors.password ? (
                   <Text style={styles.errorText}>{errors.password}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <TouchableOpacity
-                style={[styles.loginButton, isLoading ? styles.loginButtonDisabled : null]}
-                onPress={handleLoginPress}
+              
+                <TouchableOpacity
+                  style={[{alignItems: 'center',
+                    marginTop: 10, width: '100%'}]}
+                  onPress={handleLoginPress}
                 disabled={isLoading}
               >
+                <Animated.View entering={FadeInDown.duration(500).delay(150)} style={[styles.loginButton, isLoading ? styles.loginButtonDisabled : null]}>
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.loginButtonText}>Войти</Text>
                 )}
+                </Animated.View>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.forgotPasswordButton}>
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
-              <View style={styles.socialContainer}>
+
+              <Animated.View style={styles.forgotPasswordButton} entering={FadeInDown.duration(500).delay(200)}>
+                <TouchableOpacity onPress={onForgotPassword}>
+                  <Text style={styles.forgotPasswordText}>Забыли пароль?</Text>
+                </TouchableOpacity>
+              </Animated.View>
+              
+              <Animated.View style={styles.socialContainer} entering={FadeInDown.duration(500).delay(250)}>
                 <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
                   <VK width={30} height={30} />
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -230,14 +251,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 1,
-  },
-  backButtonText: {
-    fontFamily: 'REM',
-    fontSize: 16,
-    color: '#000',
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    width: 33,
+    height: 33,
   },
   inputContainer: {
     borderRadius: 41,
@@ -295,13 +313,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A3120',
     borderRadius: 41,
     paddingVertical: 22,
-    alignItems: 'center',
-    marginTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    width: '100%',
+    alignItems: 'center',
   },
   loginButtonDisabled: {
     backgroundColor: 'rgba(205, 166, 122, 0.4)',
@@ -316,10 +334,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   forgotPasswordText: {
-    fontFamily: 'REM',
+    fontFamily: 'IgraSans',
     fontSize: 12,
     color: '#000',
-    textDecorationLine: 'underline',
   },
   logoContainer: {
 		alignItems: 'center',

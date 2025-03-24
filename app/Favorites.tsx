@@ -19,7 +19,8 @@ import Animated, {
   useAnimatedStyle, 
   withTiming, 
   Easing,
-  cancelAnimation
+  cancelAnimation,
+  FadeOut
 } from 'react-native-reanimated';
 import PlusSvg from './assets/Plus.svg';
 
@@ -526,10 +527,13 @@ const MainContent = ({
   return (
   <>
     {/* Top Box (Friends by default) */}
-    <View style={[
+    <Animated.View style={[
       styles.topBox,
       { backgroundColor: activeView === 'friends' ? '#C8A688' : '#AE8F72' }
-    ]}>
+    ]}
+    entering={FadeInDown.duration(400).delay(200)}
+    //exiting={FadeOutDown.duration(50)}
+    >
       <View style={{ flex: 1, borderRadius: 41 }}>
         <FlatList
           style={styles.flatList}
@@ -556,13 +560,16 @@ const MainContent = ({
           )}
         </View>
       </View>
-    </View>
+    </Animated.View>
     
     {/* Bottom Box (Saved by default) */}
-    <View style={[
+    <Animated.View style={[
       styles.bottomBox,
       { backgroundColor: activeView === 'friends' ? '#AE8F72' : '#C8A688' }
-    ]}>
+    ]}
+    entering={FadeInDown.duration(400).delay(400)}
+    //exiting={FadeOutDown.duration(50)}
+    >
       {Platform.OS === 'ios' ? (
         <Animated.View style={[bottomBoxAnimatedStyle, { flex: 1, borderRadius: 41 }]}>
           <BottomBoxContent 
@@ -588,7 +595,7 @@ const MainContent = ({
           />
         </View>
       )}
-    </View>
+    </Animated.View>
   </>
   );
 };

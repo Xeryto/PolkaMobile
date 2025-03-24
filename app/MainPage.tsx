@@ -760,9 +760,10 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     <Animated.View style={[styles.container]} entering={FadeInDown.duration(500).delay(200)} exiting={FadeOutDown.duration(50)}>
       <View style={styles.roundedBox}>
         <LinearGradient
-          colors={["rgba(205, 166, 122, 0.4)", "rgba(205, 166, 122, 0)"]}
-          start={{ x: 0, y: 1 }}
-          end={{ x: 1, y: 0.3 }}
+          colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+          start={{ x: 0.1, y: 1 }}
+          end={{ x: 0.9, y: 0.3 }}
+          locations={[0.2, 1]}
           style={styles.gradientBackground}
         />
         

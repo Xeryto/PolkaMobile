@@ -10,12 +10,17 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import VK from '../assets/VK.svg';
+import BackIcon from '../assets/Back.svg';
+import InfoIcon from '../assets/InfoIcon.svg';
+import CheckboxChecked from '../assets/CheckboxChecked.svg';
+import CheckboxUnchecked from '../assets/CheckboxUnchecked.svg';
 import { Dimensions } from 'react-native';
 import * as api from '../services/api';
 
@@ -33,6 +38,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [errors, setErrors] = useState({
     username: '',
     email: '',
@@ -52,37 +59,54 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
       confirmPassword: '',
       general: '' 
     };
+
+    const illegalCharRegex = /[^a-zA-Z0-9@#$-_!]/; // Only allow letters, numbers, and @#$-_!
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
     
     // Validate username
     if (!username.trim()) {
-      newErrors.username = 'Username is required';
+      newErrors.username = 'Ник обязателен';
       valid = false;
     } else if (username.trim().length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
+      newErrors.username = 'Ник должен быть не менее 3 символов';
       valid = false;
     }
     
     // Validate email
     if (!email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Email обязателен';
       valid = false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = 'Email некорректен';
       valid = false;
     }
     
     // Validate password
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Пароль обязателен';
       valid = false;
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Пароль должен быть не менее 6 символов';
+      valid = false;
+    } else if (!passwordRegex.test(password)) {
+      newErrors.password = 'Пароль должен содержать буквы и цифры';
+      valid = false;
+    } else if (password.includes(' ')) {
+      newErrors.password = 'Пароль не должен содержать пробелов';
+      valid = false;
+    } else if (illegalCharRegex.test(password)) {
+      newErrors.password = 'Пароль содержит недопустимые символы';
       valid = false;
     }
     
     // Validate password confirmation
     if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = 'Пароли не совпадают';
+      valid = false;
+    }
+    
+    // Validate terms acceptance
+    if (!termsAccepted) {
       valid = false;
     }
     
@@ -105,7 +129,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
     } catch (error) {
       setIsLoading(false);
       
-      let errorMessage = 'Registration failed. Please try again later.';
+      let errorMessage = 'Ошибка регистрации. Попробуйте позже.';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
@@ -115,6 +139,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
         general: errorMessage
       });
     }
+  };
+
+  // Toggle terms modal
+  const handleInfoPress = () => {
+    setShowTermsModal(true);
   };
   
   return (
@@ -140,14 +169,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View 
-              entering={FadeIn.duration(800)}
+              entering={FadeInDown.duration(500).delay(200)}
               style={styles.formContainer}
             >
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={onBack}
+                activeOpacity={0.7}
               >
-                <Text style={styles.backButtonText}>← Back</Text>
+                <BackIcon width={33} height={33} />
               </TouchableOpacity>
               
               <View 
@@ -162,7 +192,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 </View>
               ) : null}
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(250)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.username ? styles.inputError : null]}
@@ -176,9 +206,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 {errors.username ? (
                   <Text style={styles.errorText}>{errors.username}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(300)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.email ? styles.inputError : null]}
@@ -194,9 +224,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 {errors.email ? (
                   <Text style={styles.errorText}>{errors.email}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(350)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.password ? styles.inputError : null]}
@@ -210,9 +240,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 {errors.password ? (
                   <Text style={styles.errorText}>{errors.password}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <View style={styles.inputShadow}>
+              <Animated.View style={styles.inputShadow} entering={FadeInDown.duration(500).delay(400)}>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
@@ -226,38 +256,106 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
                 {errors.confirmPassword ? (
                   <Text style={styles.errorText}>{errors.confirmPassword}</Text>
                 ) : null}
-              </View>
+              </Animated.View>
               
-              <TouchableOpacity
-                style={[styles.signupButton, isLoading ? styles.signupButtonDisabled : null]}
-                onPress={handleSignupPress}
-                disabled={isLoading}
+              
+                <TouchableOpacity
+                style={[{alignItems: 'center',
+                  marginTop: 10, width: '100%'}]}
+                  onPress={handleSignupPress}
+                  disabled={isLoading || !termsAccepted}
+                >
+                  <Animated.View 
+                style={
+                  [styles.signupButton, isLoading || !termsAccepted ? styles.signupButtonDisabled : null]} 
+                entering={FadeInDown.duration(500).delay(450)}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.signupButtonText}>Зарегистрироваться</Text>
                 )}
+                </Animated.View>
               </TouchableOpacity>
               
-              <View style={styles.termsContainer}>
-                <Text style={styles.termsText}>
-                  Регистрируясь, вы соглашаетесь с{' '}
-                  <Text style={styles.termsLink}>Условиями использования</Text>
-                  {' '}и{' '}
-                  <Text style={styles.termsLink}>Политикой конфиденциальности</Text>
-                </Text>
-              </View>
+              <Animated.View style={styles.termsContainer} entering={FadeInDown.duration(500).delay(500)}>
+                <View style={styles.termsRow}>
+                  <TouchableOpacity onPress={handleInfoPress}>
+                    <InfoIcon width={15} height={15} />
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.termsText}>
+                    Соглашаюсь с{' '}
+                    <Text 
+                      style={styles.termsLink} 
+                      onPress={() => Alert.alert('Условия', 'Здесь будут отображены условия использования.')}
+                    >
+                      Условиями использования
+                    </Text>
+                    {' '}и{' '}
+                    <Text 
+                      style={styles.termsLink}
+                      onPress={() => Alert.alert('Политика', 'Здесь будет отображена политика конфиденциальности.')}
+                    >
+                      Политикой конфиденциальности
+                    </Text>
+                  </Text>
+                  
+                  <TouchableOpacity 
+                    onPress={() => setTermsAccepted(!termsAccepted)} 
+                    style={styles.checkboxContainer}
+                  >
+                    {termsAccepted ? (
+                      <CheckboxChecked width={20} height={20} />
+                    ) : (
+                      <CheckboxUnchecked width={20} height={20} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
 
-              <View style={styles.socialContainer}>
+              <Animated.View style={styles.socialContainer} entering={FadeInDown.duration(500).delay(550)}>
                 <TouchableOpacity style={styles.vkButton} onPress={() => Alert.alert('VK Login', 'VK login will be implemented in a future update.')}>
                   <VK width={30} height={30} />
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      
+      {/* Terms and Conditions Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showTermsModal}
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Условия и Политика</Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.modalText}>
+                <Text style={styles.modalSubtitle}>Условия использования:</Text>{'\n\n'}
+                Используя наше приложение, вы соглашаетесь соблюдать данные условия использования. 
+                Приложение предоставляется "как есть" без каких-либо гарантий. 
+                Мы оставляем за собой право изменять условия в любое время.{'\n\n'}
+                
+                <Text style={styles.modalSubtitle}>Политика конфиденциальности:</Text>{'\n\n'}
+                Мы собираем только необходимые данные для функционирования приложения.
+                Ваши личные данные защищены и не передаются третьим лицам без вашего согласия.
+                Вы можете запросить удаление своих данных в любое время.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowTermsModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Закрыть</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
@@ -295,7 +393,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     left: 16,
-    zIndex: 1,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backButtonText: {
     fontFamily: 'REM',
@@ -358,13 +460,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A3120',
     borderRadius: 41,
     paddingVertical: 22,
-    alignItems: 'center',
-    marginTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    width: '100%',
+    alignItems: 'center',
   },
   signupButtonDisabled: {
     backgroundColor: 'rgba(205, 166, 122, 0.4)',
@@ -375,24 +477,36 @@ const styles = StyleSheet.create({
     color: '#F2ECE7',
   },
   termsContainer: {
-    marginTop: 10,
+    marginTop: 15,
     alignItems: 'center',
   },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '80%',
+    paddingHorizontal: 5,
+  },
   termsText: {
-    fontFamily: 'REM',
-    fontSize: 12,
+    fontFamily: 'IgraSans',
+    fontSize: 10,
     color: 'rgba(0, 0, 0, 0.8)',
     textAlign: 'center',
+    flex: 1,
+    marginHorizontal: 10,
   },
   termsLink: {
-    fontFamily: 'REM',
-    fontSize: 12,
+    fontFamily: 'IgraSans',
+    fontSize: 10,
     color: '#000',
     textDecorationLine: 'underline',
   },
+  checkboxContainer: {
+    padding: 5,
+  },
   logoContainer: {
-		alignItems: 'center',
-		justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
     marginBottom: 30,
     shadowColor: '#000',
     shadowOffset: {
@@ -402,7 +516,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 8,
-	},
+  },
   socialContainer: {
     marginTop: 20,
     //marginBottom: 10,
@@ -423,6 +537,63 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     //overflow: 'hidden',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 18,
+    color: '#4A3120',
+    marginBottom: 15,
+  },
+  modalScroll: {
+    width: '100%',
+    marginBottom: 15,
+  },
+  modalText: {
+    fontFamily: 'REM',
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  modalSubtitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 16,
+    color: '#4A3120',
+    fontWeight: 'bold',
+  },
+  modalCloseButton: {
+    backgroundColor: '#4A3120',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  modalCloseButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 16,
+    color: '#F2ECE7',
   },
 });
 

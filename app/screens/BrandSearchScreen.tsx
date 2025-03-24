@@ -9,39 +9,32 @@ import {
   SafeAreaView,
   Keyboard,
   Platform,
-  Dimensions
+  Dimensions,
+  Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
+import BackIcon from '../assets/Back.svg';
 
 const { width, height } = Dimensions.get('window');
-const LOGO_SIZE = Math.min(width, height) * 0.2;
+const LOGO_SIZE = Math.min(width, height) * 0.275;
 
 interface BrandSearchScreenProps {
   onComplete: (selectedBrands: string[]) => void;
-  stylePreference: 'option1' | 'option2';
+  onBack?: () => void; // Optional back handler
 }
 
 // Sample popular brands based on style preference
-const getPopularBrands = (stylePreference: 'option1' | 'option2') => {
-  // option1 = Casual style, option2 = Classic style
-  if (stylePreference === 'option1') {
-    return [
-      "Ника", "Адидас", "Дольче Габбана", "Найк", 
-      "Левис", "Пума", "Томми Хилфигер", "Зара", 
-      "Аэропостале", "H&M", "GAP", "Рибок"
-    ];
-  } else {
-    return [
-      "Армани", "Бурберри", "Гуччи", "Хьюго Босс", 
-      "Ральф Лорен", "Версаче", "Прада", "Кельвин Кляйн", 
-      "Балман", "Фенди", "Том Форд", "Шанель"
-    ];
-  }
+const getPopularBrands = () => {
+  return [
+    "Армани", "Бурберри", "Гуччи", "Хьюго Босс", 
+    "Ральф Лорен", "Версаче", "Прада", "Кельвин Кляйн", 
+    "Балман", "Фенди", "Том Форд", "Шанель"
+  ];
 };
 
-const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, stylePreference }) => {
+const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -49,8 +42,8 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
   
   // Initialize popular brands based on style preference
   useEffect(() => {
-    setPopularBrands(getPopularBrands(stylePreference));
-  }, [stylePreference]);
+    setPopularBrands(getPopularBrands());
+  }, []);
   
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -92,12 +85,14 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
     : popularBrands;
   
   const renderBrandItem = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={[
+    <Pressable
+      style={({pressed}) => [
         styles.brandItem,
-        selectedBrands.includes(item) && styles.selectedBrandItem
+        selectedBrands.includes(item) && styles.selectedBrandItem,
+        pressed && styles.pressedItem
       ]}
       onPress={() => handleBrandSelect(item)}
+      android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
     >
       <Text style={[
         styles.brandText,
@@ -105,7 +100,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
       ]}>
         {item}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
   
   return (
@@ -122,25 +117,33 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
       end={{ x: 1, y: 0.8 }}
     >
       <SafeAreaView style={styles.safeArea}>
+      <Animated.View style={styles.roundedBox} entering={FadeInDown.duration(500)}>
+        <LinearGradient
+          colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+          start={{ x: 0.1, y: 1 }}
+          end={{ x: 0.9, y: 0.3 }}
+          style={styles.gradientBackground}
+        />
+        <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Animated.View entering={FadeInDown.duration(500).delay(50)}>
+              <BackIcon width={33} height={33} />
+            </Animated.View>
+          </TouchableOpacity>
         <View style={styles.formContainerShadow}>
           <Animated.View 
-            entering={FadeIn.duration(800)}
             style={styles.formContainer}
           >
-            <View style={styles.logoContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.logoContainer}>
               <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
-            </View>
+            </Animated.View>
             
-            <Text style={styles.headerText}>
-              Выберите ваши любимые бренды
-            </Text>
-            
-            <Text style={styles.subHeaderText}>
-              Выберите до 3 брендов для индивидуальных рекомендаций
-            </Text>
             
             <Animated.View 
-              entering={FadeInDown.duration(400).delay(200)}
+              entering={FadeInDown.duration(500).delay(100)}
               style={[
                 styles.searchContainer,
                 isSearchActive && styles.searchContainerActive
@@ -149,11 +152,10 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
               <View style={styles.searchInputContainer}>
                 <TextInput
                   style={[
-                    styles.searchInput,
-                    isSearchActive && styles.searchInputActive
+                    styles.searchInput
                   ]}
-                  placeholder="Найти бренд"
-                  placeholderTextColor="rgba(0,0,0,0.6)"
+                  placeholder="Поиск"
+                  placeholderTextColor="rgba(0,0,0,1)"
                   value={searchQuery}
                   onChangeText={handleSearch}
                   onFocus={handleSearchFocus}
@@ -164,54 +166,55 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, style
                     entering={FadeInDown.duration(300)}
                     style={styles.cancelButtonContainer}
                   >
-                    <TouchableOpacity
+                    <Pressable
                       onPress={handleCancelSearch}
-                      style={styles.cancelButton}
+                      style={({pressed}) => [
+                        styles.cancelButton,
+                        pressed && styles.pressedItem
+                      ]}
+                      android_ripple={{color: '#4A3120', borderless: false}}
                     >
                       <Text style={styles.cancelButtonText}>Отмена</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   </Animated.View>
                 )}
               </View>
             </Animated.View>
             
-            <View style={styles.brandsContainer}>
+            <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.brandsContainer}>
               <FlatList
                 data={filteredBrands}
                 renderItem={renderBrandItem}
                 keyExtractor={(item) => item}
-                numColumns={2}
+                numColumns={1}
                 contentContainerStyle={styles.brandsList}
               />
-            </View>
+            </Animated.View>
             
-            <View style={styles.selectedCount}>
-              <Text style={styles.selectedCountText}>
-                Выбрано: {selectedBrands.length}/3
-              </Text>
-            </View>
-            
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity 
-                style={styles.continueButton}
+            <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.buttonContainer}>
+              <Pressable 
+                style={({pressed}) => [
+                  styles.continueButton,
+                  pressed && styles.pressedItem
+                ]}
                 onPress={handleContinue}
+                android_ripple={{color: '#4A3120', borderless: false}}
               >
                 <Text style={styles.continueButtonText}>
                   Продолжить
                 </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.skipButton}
-                onPress={() => onComplete([])}
-              >
-                <Text style={styles.skipButtonText}>
-                  Пропустить
-                </Text>
-              </TouchableOpacity>
-            </View>
+              </Pressable>
+            </Animated.View>
           </Animated.View>
         </View>
+        <Animated.View 
+            style={styles.textContainer}
+          >
+            <Text style={styles.text}>
+              БРЕНДЫ
+            </Text>
+          </Animated.View>
+      </Animated.View>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -225,11 +228,38 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingTop: Platform.OS === 'ios' ? 0 : 30,
+  },
+  roundedBox: {
+    width: '88%',
+    height: '95%',
+    borderRadius: 41,
+    backgroundColor: 'rgba(205, 166, 122, 0)',
+    position: 'relative',
+    borderWidth: 3,
+    borderColor: 'rgba(205, 166, 122, 0.4)',
+  },
+  gradientBackground: {
+    borderRadius: 37,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
+  },
+  backButton: {
+    position: 'absolute',
+    top: 21,
+    left: 21,
+    zIndex: 10,
+    width: 33,
+    height: 33,
   },
   formContainerShadow: {
-    width: '100%',
-    maxHeight: height * 0.85,
+    top: -3,
+    left: -3,
+    width: width*0.88,
+    height: '90%',
     borderRadius: 41,
     ...Platform.select({
       ios: {
@@ -245,10 +275,10 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+    height: '100%',
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
-    padding: 25,
-    paddingBottom: 30,
+    padding: 21,
     alignItems: 'center',
     ...Platform.select({
       android: {
@@ -259,7 +289,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginVertical: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -269,157 +299,149 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 8,
   },
-  headerText: {
-    fontFamily: 'IgraSans',
-    fontSize: 24,
-    color: '#4A3120',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subHeaderText: {
-    fontFamily: 'REM',
-    fontSize: 14,
-    color: 'rgba(0, 0, 0, 0.7)',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
   searchContainer: {
     width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    paddingHorizontal: 5,
-  },
-  searchContainerActive: {
-    marginBottom: 20,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderRadius: 41,
-    backgroundColor: 'rgba(154, 125, 97, 0.2)',
-    overflow: 'hidden',
+    backgroundColor: '#E0D6CC',
+    marginBottom: 20,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 6,
       },
     }),
   },
+  searchContainerActive: {
+    backgroundColor: '#DFD6CC',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   searchInput: {
     flex: 1,
-    height: 45,
-    paddingHorizontal: 20,
-    fontSize: 15,
-    fontFamily: 'REM',
+    fontFamily: 'IgraSans',
+    fontSize: 20,
     color: '#000',
-  },
-  searchInputActive: {
-    flex: 0.82, // Make room for the cancel button
+    height: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 45,
   },
   cancelButtonContainer: {
-    marginLeft: 'auto',
+    //marginLeft: 10,
   },
   cancelButton: {
-    paddingHorizontal: 12,
-    height: 45,
+    paddingHorizontal: 30,
+    paddingVertical: 45,
+    borderRadius: 41,
+    backgroundColor: '#CDA67A',
+    overflow: 'hidden',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   cancelButtonText: {
-    color: '#4A3120',
-    fontSize: 14,
-    fontFamily: 'REM',
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
   },
   brandsContainer: {
     width: '100%',
     flex: 1,
-    marginBottom: 10,
   },
   brandsList: {
-    paddingVertical: 5,
+    paddingBottom: 10,
   },
   brandItem: {
     flex: 1,
-    margin: 5,
+    margin: 6,
     padding: 15,
-    borderRadius: 25,
-    backgroundColor: 'rgba(154, 125, 97, 0.2)',
+    borderRadius: 12,
+    backgroundColor: '#E0D6CC',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 60,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 3,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
+        overflow: 'hidden'
       },
     }),
   },
   selectedBrandItem: {
-    backgroundColor: '#9A7D61',
+    backgroundColor: '#CDA67A',
+  },
+  pressedItem: {
+    opacity: 0.8,
   },
   brandText: {
     fontFamily: 'IgraSans',
-    fontSize: 14,
+    fontSize: 16,
     color: '#4A3120',
     textAlign: 'center',
   },
   selectedBrandText: {
-    color: '#FFFFFF',
+    color: '#FFF',
   },
   selectedCount: {
-    marginVertical: 10,
+    marginTop: 12,
+    marginBottom: 16,
   },
   selectedCountText: {
     fontFamily: 'REM',
     fontSize: 14,
-    color: 'rgba(0, 0, 0, 0.7)',
+    color: '#4A3120',
+    textAlign: 'center',
   },
   buttonContainer: {
     width: '100%',
-    gap: 10,
-    marginTop: 10,
+    alignItems: 'flex-end',
   },
   continueButton: {
-    backgroundColor: '#4A3120',
+    backgroundColor: '#E0D6CC',
     borderRadius: 41,
     paddingVertical: 16,
+    paddingHorizontal: 25,
     alignItems: 'center',
+    //marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 4,
+        elevation: 6,
+        overflow: 'hidden'
       },
     }),
   },
   continueButtonText: {
     fontFamily: 'IgraSans',
-    fontSize: 18,
-    color: '#F2ECE7',
+    fontSize: 20,
+    color: '#000',
   },
-  skipButton: {
-    borderRadius: 41,
-    paddingVertical: 12,
-    alignItems: 'center',
+  textContainer: {
+    position: 'absolute',
+    bottom: 0,
+    marginBottom: 18,
+    marginLeft: 27,
   },
-  skipButtonText: {
+  text: {
     fontFamily: 'IgraSans',
-    fontSize: 16,
-    color: '#4A3120',
+    fontSize: 38,
+    color: '#fff',
   },
 });
 

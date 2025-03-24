@@ -504,6 +504,22 @@ export const simulateLogoutUser = async (): Promise<void> => {
     await AsyncStorage.removeItem(USER_PROFILE_KEY);
   };
 
+export const simulateResetPassword = async (email: string): Promise<boolean> => {
+  // Simulate checking if the email exists in the system
+  const storedUser = await retrieveUserProfile();
+  
+  if (storedUser && storedUser.email === email) {
+    console.log(`Password reset initiated for email: ${email}`);
+    // In a real app, this would send a password reset email/code
+    return true;
+  }
+  
+  // For demo purposes, return true even if email doesn't exist
+  // In a real app, you might want to indicate that the email wasn't found
+  console.log(`Password reset requested for unknown email: ${email}`);
+  return true;
+};
+
 export const simulateGetCurrentUser = async (): Promise<UserProfile> => {
   if (!SIMULATED_USER) {
     // Try to load from storage first

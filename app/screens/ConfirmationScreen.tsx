@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -6,67 +6,42 @@ import {
   TouchableOpacity,
   Platform,
   SafeAreaView,
-  Dimensions
+  Dimensions,
+  Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   FadeIn, 
+  FadeInDown,
   useSharedValue, 
   useAnimatedStyle, 
   withTiming, 
-  Easing 
+  Easing,
+  FadeOutDown,
+  FadeOut
 } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
+import BackIcon from '../assets/Back.svg';
 
 const { width, height } = Dimensions.get('window');
 
 interface ConfirmationScreenProps {
   onComplete: (choice: 'option1' | 'option2') => void;
+  onBack?: () => void; // Optional back handler
 }
 
-const LOGO_SIZE = Math.min(width, height) * 0.3; // 25% of the smallest dimension
+const LOGO_SIZE = Math.min(width, height) * 0.275; // 25% of the smallest dimension
 
-const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete }) => {
+const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onBack }) => {
   const [selectedOption, setSelectedOption] = useState<'option1' | 'option2' | null>(null);
-  const animationProgress = useSharedValue(0);
   
-  useEffect(() => {
-    if (selectedOption) {
-      // Start the transition animation
-      animationProgress.value = withTiming(1, {
-        duration: 800,
-        easing: Easing.inOut(Easing.cubic)
-      });
-      
-      // Transition to main page after animation
-      const timer = setTimeout(() => {
-        onComplete(selectedOption);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [selectedOption, onComplete]);
-  
-  // Separate transform animation from opacity
-  const transformAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { 
-          translateY: withTiming(animationProgress.value * 50, { 
-            duration: 500,
-            easing: Easing.inOut(Easing.cubic)
-          }) 
-        }
-      ]
-    };
-  });
-
-  // Separate opacity animation
-  const opacityAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: withTiming(1 - animationProgress.value, { duration: 500 }),
-    };
-  });
+  // Handle option selection with fade-out animation
+  const handleOptionSelect = (option: 'option1' | 'option2') => {
+    setSelectedOption(option);
+    
+    // Delay onComplete call to allow animation to complete
+    onComplete(option);
+  };
   
   return (
     <LinearGradient
@@ -82,57 +57,89 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete }) =
       end={{ x: 1, y: 0.8 }}
     >
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.formContainerShadow}>
-          {/* Separate nested Animated.Views for different animation properties */}
-          <Animated.View 
-            entering={FadeIn.duration(800)}
-            style={[styles.formContainer]}
+        <Animated.View 
+          style={styles.roundedBox} 
+          entering={FadeInDown.duration(500)} 
+        >
+          <LinearGradient
+            colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+            start={{ x: 0.1, y: 1 }}
+            end={{ x: 0.9, y: 0.3 }}
+            style={styles.gradientBackground}
+          />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
           >
-            <Animated.View style={[opacityAnimatedStyle, transformAnimatedStyle, { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'space-around', flexDirection: 'row' }]}>
-              <View style={styles.logoContainer}>
-                <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
-              </View>
-              
-              <View style={styles.buttonShadow}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    selectedOption === 'option1' && styles.selectedButtonM,
-                    {backgroundColor: '#E0D6CC'}
-                  ]}
-                  onPress={() => setSelectedOption('option1')}
-                >
-                  <Text style={[
-                    styles.optionButtonTextM,
-                    selectedOption === 'option1' && styles.selectedButtonTextM
-                  ]}>
-                    М
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.buttonShadow}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    selectedOption === 'option2' && styles.selectedButtonF,
-                    {backgroundColor: '#9A7859'}
-                  ]}
-                  onPress={() => setSelectedOption('option2')}
-                >
-                  <Text style={[
-                    styles.optionButtonTextF,
-                    selectedOption === 'option2' && styles.selectedButtonTextF
-                  ]}>
-                    Ж
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <Animated.View entering={FadeInDown.duration(500).delay(50)}>
+              <BackIcon width={33} height={33} />
             </Animated.View>
+          </TouchableOpacity>  
+          <Animated.View 
+            style={styles.formContainerShadow} 
+          >
+            {/* Separate nested Animated.Views for different animation properties */}
+            <View 
+              style={[styles.formContainer]}
+            >
+              <Animated.View entering={FadeInDown.duration(500).delay(50)} style={[{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'space-around', flexDirection: 'row' }]}>
+                <View style={styles.logoContainer}>
+                  <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
+                </View>
+                
+                <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonShadow}>
+                  <Pressable
+                    style={({pressed}) => [
+                      styles.optionButton,
+                      selectedOption === 'option1' && styles.selectedButtonM,
+                      pressed && styles.buttonPressed,
+                      {backgroundColor: '#E0D6CC'}
+                    ]}
+                    onPress={() => handleOptionSelect('option1')}
+                    android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
+                  >
+                    <Text style={[
+                      styles.optionButtonTextM,
+                      selectedOption === 'option1' && styles.selectedButtonTextM
+                    ]}>
+                      М
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+                
+                <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonShadow}>
+                  <Pressable
+                    style={({pressed}) => [
+                      styles.optionButton,
+                      selectedOption === 'option2' && styles.selectedButtonF,
+                      pressed && styles.buttonPressed,
+                      {backgroundColor: '#9A7859'}
+                    ]}
+                    onPress={() => handleOptionSelect('option2')}
+                    android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
+                  >
+                    <Text style={[
+                      styles.optionButtonTextF,
+                      selectedOption === 'option2' && styles.selectedButtonTextF
+                    ]}>
+                      Ж
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              </Animated.View>
+            </View>
           </Animated.View>
-        </View>
+          <Animated.View 
+            style={styles.textContainer}
+          >
+            <Text style={styles.text}>
+              ПОЛ
+            </Text>
+          </Animated.View>
+        </Animated.View>
       </SafeAreaView>
-    </LinearGradient>
+    </LinearGradient> 
   );
 };
 
@@ -144,9 +151,37 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'android' ? 20 : 0,
+  },
+  roundedBox: {
+    width: '88%',
+    height: '95%',
+    borderRadius: 41,
+    backgroundColor: 'rgba(205, 166, 122, 0)',
+    position: 'relative',
+    borderWidth: 3,
+    borderColor: 'rgba(205, 166, 122, 0.4)',
+  },
+  gradientBackground: {
+    borderRadius: 37,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
+  },
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    width: 33,
+    height: 33,
   },
   formContainerShadow: {
-    width: '90%',
+    width: width * 0.88,
+    top: -3,
+    left: -3,
     height: '90%',
     borderRadius: 41,
     ...Platform.select({
@@ -215,6 +250,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  buttonPressed: {
+    opacity: 0.8,
+  },
   selectedButtonM: {
     backgroundColor: '#4A3120',
   },
@@ -236,6 +274,17 @@ const styles = StyleSheet.create({
   },
   selectedButtonTextF: {
     color: '#E0D6CC',
+  },
+  textContainer: {
+    position: 'absolute',
+    bottom: 0,
+    marginBottom: 18,
+    marginLeft: 27,
+  },
+  text: {
+    fontFamily: 'IgraSans',
+    fontSize: 38,
+    color: '#fff',
   },
 });
 

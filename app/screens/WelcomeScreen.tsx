@@ -8,16 +8,18 @@ import {
 	Platform,
 	SafeAreaView,
 	Animated as RNAnimated,
-	Easing
+	Easing,
+	TouchableOpacity
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
 import ConfirmationScreen from './ConfirmationScreen';
 import BrandSearchScreen from './BrandSearchScreen';
 import StylesSelectionScreen from './StylesSelectionScreen';
+import ForgotPasswordScreen from './ForgotPasswordScreen';
 
 interface WelcomeScreenProps {
 	onLogin: () => void;
@@ -30,10 +32,11 @@ const LOGO_SIZE = Math.min(width, height) * 0.25; // 25% of the smallest dimensi
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) => {
 	const [showLoginScreen, setShowLoginScreen] = useState(false);
 	const [showSignupScreen, setShowSignupScreen] = useState(false);
+	const [showForgotPasswordScreen, setShowForgotPasswordScreen] = useState(false);
 	const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
 	const [showBrandSearchScreen, setShowBrandSearchScreen] = useState(false);
 	const [showStylesSelectionScreen, setShowStylesSelectionScreen] = useState(false);
-	const [selectedStylePreference, setSelectedStylePreference] = useState<'option1' | 'option2'>('option1');
+	const [selectedOption, setSelectedOption] = useState<'option1' | 'option2'>('option1');
 	const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
 	const [isReady, setIsReady] = useState(false);
 	const [isSpinning, setIsSpinning] = useState(false);
@@ -55,6 +58,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	// Handle login button press
 	const handleLoginPress = () => {
 		setShowLoginScreen(true);
+	};
+
+	// Handle forgot password button press
+	const handleForgotPasswordPress = () => {
+		setShowLoginScreen(false);
+		setShowForgotPasswordScreen(true);
 	};
 
 	// Handle register button press with spinning border animation
@@ -106,6 +115,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	const handleBackPress = () => {
 		setShowLoginScreen(false);
 		setShowSignupScreen(false);
+		setShowForgotPasswordScreen(false);
+	};
+
+	const handleBackPressForgotPassword = () => {
+		setShowLoginScreen(true);
+		setShowSignupScreen(false);
+		setShowForgotPasswordScreen(false);
 	};
 	
 	// Handle successful login
@@ -121,9 +137,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	
 	// Handle confirmation screen completion and move to brand search
 	const handleConfirmationComplete = (choice: 'option1' | 'option2') => {
-		console.log(`User selected style preference: ${choice}`);
-		// Save the style preference and show brand search screen
-		setSelectedStylePreference(choice);
+		console.log(`User selected option: ${choice}`);
+		// Save the selected option and show brand search screen
+		setSelectedOption(choice);
 		setShowConfirmationScreen(false);
 		setShowBrandSearchScreen(true);
 	};
@@ -141,7 +157,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	const handleStylesSelectionComplete = (styles: string[]) => {
 		console.log(`User selected styles: ${styles.join(', ')}`);
 		// Pass style preference, selected brands, and favorite styles to onRegister
-		onRegister(selectedStylePreference, selectedBrands, styles);
+		onRegister(selectedOption, selectedBrands, styles);
 	};
 	
 	// If showing login screen
@@ -150,6 +166,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 			<LoginScreen 
 				onLogin={handleSuccessfulLogin} 
 				onBack={handleBackPress} 
+				onForgotPassword={handleForgotPasswordPress}
+			/>
+		);
+	}
+	
+	// If showing forgot password screen
+	if (showForgotPasswordScreen) {
+		return (
+			<ForgotPasswordScreen 
+				onBack={handleBackPressForgotPassword}
 			/>
 		);
 	}
@@ -169,6 +195,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 		return (
 			<ConfirmationScreen 
 				onComplete={handleConfirmationComplete} 
+				onBack={() => {
+					setShowConfirmationScreen(false);
+					setShowSignupScreen(true);
+				}}
 			/>
 		);
 	}
@@ -178,7 +208,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 		return (
 			<BrandSearchScreen 
 				onComplete={handleBrandSearchComplete}
-				stylePreference={selectedStylePreference}
+				onBack={() => {
+					setShowBrandSearchScreen(false);
+					setShowConfirmationScreen(true);
+				}}
 			/>
 		);
 	}
@@ -188,7 +221,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 		return (
 			<StylesSelectionScreen 
 				onComplete={handleStylesSelectionComplete}
-				stylePreference={selectedStylePreference}
+				onBack={() => {
+					setShowStylesSelectionScreen(false);
+					setShowBrandSearchScreen(true);
+				}}
 			/>
 		);
 	}
@@ -210,14 +246,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 				{isReady && (
 					<View style={styles.whiteBox}>
 						<Animated.View 
-							entering={FadeIn.duration(800)}
+							entering={FadeInDown.duration(500)}
 							style={styles.logoContainer}
 						>
 							<Logo width={LOGO_SIZE} height={LOGO_SIZE} />
 						</Animated.View>
 						
 						<Animated.View 
-							entering={FadeIn.duration(800).delay(200)}
+							entering={FadeInDown.duration(500).delay(50)}
 							style={styles.shadowWrap}
 						>
 							{/* Container for the button - this stays still */}
@@ -249,7 +285,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 										transform: [{ scale: buttonScaleValue }],
 									}}
 								>
-									<Pressable
+									<TouchableOpacity
 										onPress={handleRegisterPress}
 										disabled={isSpinning}
 										style={styles.pressableContainer}
@@ -263,22 +299,22 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 										>
 											<Text style={styles.registerButtonText}>Прикоснись к AI</Text>
 										</LinearGradient>
-									</Pressable>
+									</TouchableOpacity>
 								</RNAnimated.View>
 							</View>
 						</Animated.View>
 						<Animated.View 
-							entering={FadeIn.duration(800).delay(200)}
+							entering={FadeInDown.duration(500).delay(100)}
 							style={{justifyContent: 'flex-end'}}
 						>
 							<View style={styles.loginContainer}>
 								<Text style={styles.loginText}>Есть аккаунт?</Text>
-								<Pressable 
+								<TouchableOpacity 
 									style={styles.loginButton}
 									onPress={handleLoginPress}
 								>
 									<Text style={styles.loginButtonText}>Войти</Text>
-								</Pressable>
+								</TouchableOpacity>
 							</View>
 						</Animated.View>
 					</View>
@@ -354,9 +390,6 @@ const styles = StyleSheet.create({
 		fontFamily: 'IgraSans',
 		fontSize: 15,
 		color: 'white',
-		textShadowColor: 'rgba(0, 0, 0, 0.25)',
-		textShadowOffset: { width: 1, height: 1 },
-		textShadowRadius: 3,
 	},
 	loginContainer: {
 		alignItems: 'center',
@@ -366,9 +399,6 @@ const styles = StyleSheet.create({
 		fontSize: 15,
 		color: '#787878',
 		marginBottom: 10,
-		textShadowColor: 'rgba(0, 0, 0, 0.15)',
-		textShadowOffset: { width: 1, height: 1 },
-		textShadowRadius: 3,
 	},
 	loginButton: {
 		backgroundColor: '#9A7859',
@@ -386,9 +416,6 @@ const styles = StyleSheet.create({
 		fontFamily: 'IgraSans',
 		fontSize: 15,
 		color: '#E0D6CC',
-		textShadowColor: 'rgba(0, 0, 0, 0.15)',
-		textShadowOffset: { width: 1, height: 1 },
-		textShadowRadius: 3,
 	},
 	shadowWrap: {
 		shadowColor: '#000',
