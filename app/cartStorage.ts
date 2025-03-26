@@ -12,6 +12,7 @@ export interface CartItem {
   size: string;
   quantity: number;
   isLiked?: boolean;
+  cartItemId?: string; // Add unique identifier for each cart item
 }
 
 // Initialize the cart from storage
@@ -22,8 +23,12 @@ export const initializeCart = async (): Promise<CartItem[]> => {
       // Parse the stored items, making sure to handle image references correctly
       const parsedItems: CartItem[] = JSON.parse(storedCartItems);
       
-      // Process image references which can't be directly stored as objects
-      // For now, we'll handle this by using require in the app code
+      // Ensure all items have a cartItemId
+      parsedItems.forEach(item => {
+        if (!item.cartItemId) {
+          item.cartItemId = `${item.id}-${item.size}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        }
+      });
       
       console.log('cartStorage - Initialized cart from storage with items:', parsedItems.length);
       return parsedItems;
@@ -63,39 +68,34 @@ export const createCartStorage = (initialItems: CartItem[] = []): CartStorage =>
   return {
     items: [...initialItems],
     
-    // Add item to cart (handle duplicates with same size)
+    // Add item to cart (always add as a new item)
     addItem(item: CartItem) {
-      // Check if item with same id AND size already exists
-      const existingItemIndex = this.items.findIndex(
-        i => i.id === item.id && i.size === item.size
-      );
+      // Generate a unique ID for the cart item
+      const cartItem = {
+        ...item,
+        cartItemId: `${item.id}-${item.size}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+      };
       
-      if (existingItemIndex >= 0) {
-        // Item with same id and size exists, increase quantity
-        this.items[existingItemIndex].quantity += item.quantity;
-        console.log('Cart - Increased quantity for existing item:', this.items[existingItemIndex]);
-      } else {
-        // New item, add to cart
-        this.items.push(item);
-        console.log('Cart - Added new item to cart:', item);
-      }
+      // Always add as a new item
+      this.items.push(cartItem);
+      console.log('Cart - Added new item to cart:', cartItem);
       
       // Save to persistent storage whenever the cart changes
       saveCartItems(this.items);
     },
     
-    // Remove item from cart
-    removeItem(id: number) {
-      this.items = this.items.filter(item => item.id !== id);
-      console.log('Cart - Removed item with id:', id);
+    // Remove specific item from cart by cartItemId
+    removeItem(cartItemId: string) {
+      this.items = this.items.filter(item => item.cartItemId !== cartItemId);
+      console.log('Cart - Removed item with cartItemId:', cartItemId);
       
       // Save to persistent storage whenever the cart changes
       saveCartItems(this.items);
     },
     
     // Update quantity of an item
-    updateQuantity(id: number, change: number) {
-      const itemIndex = this.items.findIndex(item => item.id === id);
+    updateQuantity(cartItemId: string, change: number) {
+      const itemIndex = this.items.findIndex(item => item.cartItemId === cartItemId);
       if (itemIndex >= 0) {
         this.items[itemIndex].quantity = Math.max(1, this.items[itemIndex].quantity + change);
         console.log('Cart - Updated quantity for item:', this.items[itemIndex]);
@@ -116,7 +116,7 @@ export const createCartStorage = (initialItems: CartItem[] = []): CartStorage =>
 export interface CartStorage {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  removeItem: (id: number) => void;
-  updateQuantity: (id: number, change: number) => void;
+  removeItem: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, change: number) => void;
   getItems: () => CartItem[];
 } 

@@ -142,6 +142,7 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
           colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
           start={{ x: 0.1, y: 1 }}
           end={{ x: 0.9, y: 0.3 }}
+          locations={[0.05, 1]}
           style={styles.gradientBackground}
         />
         <TouchableOpacity

@@ -31,13 +31,14 @@ declare global {
     size: string;
     quantity: number;
     isLiked?: boolean; // Add this line
+    cartItemId?: string; // Add cartItemId
   }
   
   interface CartStorage {
     items: CartItem[];
     addItem: (item: CartItem) => void;
-    removeItem: (id: number) => void;
-    updateQuantity: (id: number, change: number) => void;
+    removeItem: (cartItemId: string) => void;
+    updateQuantity: (cartItemId: string, change: number) => void;
     getItems: () => CartItem[];
   }
   
@@ -208,14 +209,14 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
       RNAnimated.spring(heartScale, {
         toValue: 1.3,
         useNativeDriver: true,
-        speed: 100,
+        speed: 300,
         bounciness: 12,
       }),
       // Scale back down
       RNAnimated.spring(heartScale, {
         toValue: 1,
         useNativeDriver: true,
-        speed: 100,
+        speed: 300,
         bounciness: 12,
       })
     ]).start(() => {
@@ -575,32 +576,8 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     });
   };
 
-  const handleSizeSelect = (size: string) => {
-    // Add the current card with selected size to cart
-    const currentCard = cards[currentCardIndex];
-    const cartItem = {
-      id: currentCard.id,
-      name: currentCard.name,
-      price: currentCard.price,
-      image: currentCard.image,
-      size: size,
-      quantity: 1,
-      isLiked: currentCard.isLiked
-    };
-    
-    // Add item to the cart using global storage
-    if (typeof global.cartStorage !== 'undefined') {
-      console.log('MainPage - Adding item to cart:', cartItem);
-      global.cartStorage.addItem(cartItem);
-      
-      // Provide haptic feedback on successful add
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } else {
-      console.log('MainPage - Cart storage not initialized');
-    }
-    
+  // Function to reset UI from size selection back to buttons
+  const resetToButtons = () => {
     // Reset animations and hide size selection
     RNAnimated.parallel([
       RNAnimated.timing(buttonsTranslateX, {
@@ -623,14 +600,44 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       })
     ]).start(() => {
       setShowSizeSelection(false);
-      console.log(`Selected size: ${size} for item: ${currentCard.name}`);
-      
-      // After animations complete, navigate to cart screen
-      setTimeout(() => {
-        navigation.navigate('Cart');
-        console.log('MainPage - Navigating to Cart screen after adding item');
-      }, 100); // Small delay to ensure smooth animation completion
     });
+  };
+
+  const handleSizeSelect = (size: string) => {
+    // Add the current card with selected size to cart
+    const currentCard = cards[currentCardIndex];
+    const cartItem = {
+      id: currentCard.id,
+      name: currentCard.name,
+      price: currentCard.price,
+      image: currentCard.image,
+      size: size,
+      quantity: 1,  // Always set to 1
+      isLiked: currentCard.isLiked
+    };
+    
+    // Add item to the cart using global storage
+    if (typeof global.cartStorage !== 'undefined') {
+      console.log('MainPage - Adding item to cart:', cartItem);
+      global.cartStorage.addItem(cartItem);
+      
+      // Provide haptic feedback on successful add
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      // Display selected size as feedback
+      console.log('Selected size:', size, 'for item:', currentCard.name);
+      
+      // Reset UI to show buttons again
+      resetToButtons();
+      
+      // Navigate to cart after adding
+      console.log('MainPage - Navigating to Cart screen after adding item');
+      navigation.navigate('Cart');
+    } else {
+      console.log('MainPage - Cart storage not initialized');
+    }
   };
 
   const renderCard = useCallback((card: CardItem, index: number) => {

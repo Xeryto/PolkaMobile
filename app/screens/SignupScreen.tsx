@@ -70,6 +70,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
     } else if (username.trim().length < 3) {
       newErrors.username = 'Ник должен быть не менее 3 символов';
       valid = false;
+    } else if (username.includes(' ')) {
+      newErrors.username = 'Ник не должен содержать пробелов';
+      valid = false;
+    } else if (illegalCharRegex.test(username)) {
+      newErrors.username = 'Ник содержит недопустимые символы';
+      valid = false;
     }
     
     // Validate email
@@ -78,6 +84,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
       valid = false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = 'Email некорректен';
+      valid = false;
+    } else if (email.includes(' ')) {
+      newErrors.email = 'Email не должен содержать пробелов';
+      valid = false;
+    } else if (illegalCharRegex.test(email)) {
+      newErrors.email = 'Email содержит недопустимые символы';
       valid = false;
     }
     
