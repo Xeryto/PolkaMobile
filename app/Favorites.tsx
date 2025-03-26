@@ -1533,7 +1533,7 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   profileImageContainer: {
     width: 112,
@@ -1557,7 +1557,7 @@ const styles = StyleSheet.create({
   },
   roundedBox: {
     width: '100%',
-    height: '70%',
+    height: width*1.06,
     borderRadius: 41,
     backgroundColor: 'rgba(205, 166, 122, 0)',
     position: 'relative',
@@ -1576,6 +1576,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2ECE7',
     borderRadius: 41,
     width: width * 0.88,
+    height: width * 0.88,
     top: -3,
     left: -3,
     shadowColor: '#000',
@@ -1583,12 +1584,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 6,
-    height: '83%',
   },
   recommendationsList: {
     flex: 1,
     borderRadius: 41,
     padding: 15,
+    paddingTop: 17.5,
   },
   regenerateButtonWrapper: {
     shadowColor: '#000',

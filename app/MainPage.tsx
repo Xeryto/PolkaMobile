@@ -58,6 +58,8 @@ interface MainPageProps {
   route?: {
     params?: {
       addCardItem?: CardItem;
+      refreshCards?: boolean;
+      refreshTimestamp?: number;
     }
   };
 }
@@ -259,7 +261,11 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const imageHeightPercent = useRef(new RNAnimated.Value(100)).current;
   
   // Page fade-in animation
-  const pageOpacity = useRef(new RNAnimated.Value(0)).current;
+  const pageOpacity = useRef(new RNAnimated.Value(1)).current;
+  
+  // Add refresh animation state
+  const refreshAnim = useRef(new RNAnimated.Value(1)).current;
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Heart animation value
   const heartScale = useRef(new RNAnimated.Value(1)).current;
@@ -272,6 +278,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
   // Animation state for buttons
   const cartButtonScale = useRef(new RNAnimated.Value(1)).current;
@@ -316,14 +323,57 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   // Swipe threshold (how far the card needs to be dragged to trigger a swipe)
   const SWIPE_THRESHOLD = screenHeight * 0.1; // 10% of screen height
 
+  // Add a text fade animation function
+  const animateTextChange = () => {
+    // First fade out
+    RNAnimated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.ease)
+    }).start(() => {
+      // Then fade back in
+      RNAnimated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease)
+      }).start();
+    });
+  };
+
+  // Add an effect to animate text changes when the current card index changes
+  useEffect(() => {
+    if (cards.length > 0) {
+      animateTextChange();
+    }
+  }, [currentCardIndex]);
+  
+  // Enhance the panResponder to be even more robust
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: RNAnimated.event(
-        [null, { dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: (e, gestureState) => {
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only allow swiping if not already in an animation and not refreshing
+        return !isAnimating && !isRefreshing && Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow upward movement (negative dy values)
+        if (gestureState.dy <= 0) {
+          // Directly set the Y value instead of using event
+          pan.setValue({ x: 0, y: gestureState.dy });
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If already animating or refreshing, just reset position
+        if (isAnimating || isRefreshing) {
+          RNAnimated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            friction: 5,
+            useNativeDriver: false
+          }).start();
+          return;
+        }
+
         // Check if drag exceeds threshold
         if (gestureState.dy < -SWIPE_THRESHOLD) {
           // Swipe up
@@ -336,23 +386,45 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             useNativeDriver: false
           }).start();
         }
+      },
+      onPanResponderTerminate: () => {
+        // If the gesture is terminated for any reason, reset position
+        RNAnimated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          friction: 5,
+          useNativeDriver: false
+        }).start();
       }
     })
   ).current;
 
   const fadeOutIn = useCallback(() => {
+    // Cancel any ongoing fade animations first
+    fadeAnim.stopAnimation();
+    
+    // Reset the opacity to ensure we start from a known state
+    fadeAnim.setValue(1);
+    
+    // Use sequence for more reliable animation
     RNAnimated.sequence([
       RNAnimated.timing(fadeAnim, {
         toValue: 0,
-        duration: 100,
-        useNativeDriver: true
+        duration: 150,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.ease)
       }),
       RNAnimated.timing(fadeAnim, {
         toValue: 1,
-        duration: 100,
-        useNativeDriver: true
+        duration: 250,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease)
       })
-    ]).start();
+    ]).start((finished) => {
+      // If the animation was interrupted, ensure we end with full opacity
+      if (!finished.finished) {
+        fadeAnim.setValue(1);
+      }
+    });
   }, [fadeAnim]);
 
   // Clean up any ongoing animations
@@ -429,10 +501,49 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
 
   const swipeCard = (direction: 'up' | 'right' = 'up') => {
     if (isAnimating) return;
+    
+    // Add cushioning - prevent swiping the last card until more are loaded
+    if (cards.length <= 1) {
+      console.log('MainPage - Preventing swipe of last card until more are loaded');
+      
+      // Show a quick bounce animation to indicate swipe is not allowed
+      RNAnimated.sequence([
+        RNAnimated.timing(pan, {
+          toValue: { x: 0, y: -50 },
+          duration: 100,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false
+        }),
+        RNAnimated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          friction: 4,
+          tension: 40,
+          useNativeDriver: false
+        })
+      ]).start();
+      
+      // Trigger card refresh instead of swiping
+      if (!isRefreshing) {
+        refreshCards();
+      }
+      
+      // Provide haptic feedback to indicate action is restricted
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
+      return;
+    }
+    
     setIsAnimating(true);
     
     // Get current card before it's removed
     const currentCard = cards[currentCardIndex];
+    
+    // Set a timeout that will reset animation state if something goes wrong
+    const animationSafetyTimeout = setTimeout(() => {
+      console.log('MainPage - Animation safety timeout triggered');
+      setIsAnimating(false);
+      pan.setValue({ x: 0, y: 0 });
+    }, 2000); // 2 seconds is enough time for the animation to complete
     
     // Animate card moving off screen
     RNAnimated.timing(pan, {
@@ -444,8 +555,16 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
       easing: Easing.ease,
       useNativeDriver: false
     }).start(() => {
+      // Clear the safety timeout since animation completed
+      clearTimeout(animationSafetyTimeout);
+      
       // Remove the current card from the array
       setCards(prevCards => {
+        // If no cards left, just return empty array
+        if (prevCards.length === 0) {
+          return [];
+        }
+        
         // Create new array without the current card
         const newCards = [...prevCards];
         if (newCards.length > 0) {
@@ -462,11 +581,10 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
           currentCardIndex;
         setTimeout(() => setCurrentCardIndex(newIndex), 0);
         
-        // Check if we need to fetch more cards
-        // Do this inside the state update callback to have access to the new length
-        if (newCards.length < 2) {
+        // Check if we need to fetch more cards - start fetching earlier when getting low
+        if (newCards.length < 3) {
           console.log('MainPage - Low on cards, fetching more from API');
-          fetchMoreCards(1).then(apiCards => {
+          fetchMoreCards(2).then(apiCards => {
             // We need to use another setCards call because we can't
             // update the state we're currently setting
             setCards(latestCards => {
@@ -640,7 +758,33 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }
   };
 
+  // Enhance the renderEmptyState function to include text placeholders
+  const renderEmptyState = () => {
+    return (
+      <View style={[styles.whiteBox, styles.noCardsContainer]}>
+        <Text style={styles.noCardsText}>Loading new cards...</Text>
+        <Text style={styles.noCardsSubtext}>Please wait a moment</Text>
+      </View>
+    );
+  };
+
+  // Add a safeguard effect to ensure currentCardIndex stays valid
+  useEffect(() => {
+    // If currentCardIndex is out of bounds and there are cards available, reset it
+    if (currentCardIndex >= cards.length && cards.length > 0) {
+      console.log('MainPage - Fixing out of bounds currentCardIndex');
+      setCurrentCardIndex(0);
+    }
+  }, [cards, currentCardIndex]);
+
+  // Adjust the renderCard function to add safeguards
   const renderCard = useCallback((card: CardItem, index: number) => {
+    // Safety check - if card is undefined, don't render
+    if (!card) {
+      console.log('MainPage - Card is undefined, cannot render');
+      return renderEmptyState();
+    }
+
     // Get liked status directly from the card object and ensure it's a boolean
     const isLiked = card.isLiked === true;
     
@@ -655,7 +799,8 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             transform: [
               { translateX: pan.x },
               { translateY: pan.y }
-            ] 
+            ],
+            opacity: refreshAnim // Apply refresh animation opacity directly to the white box
           }
         ]}
       >
@@ -760,12 +905,86 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     pan, 
     swipeCard, 
     handleLongPress, 
-    toggleLike
+    toggleLike,
+    refreshAnim,
+    renderEmptyState // Add the new dependency
   ]);
+
+  // Function to refresh cards with a subtle animation
+  const refreshCards = useCallback(async () => {
+    if (isRefreshing) return; // Prevent multiple refreshes at once
+    
+    console.log('MainPage - Refreshing recommended cards');
+    setIsRefreshing(true);
+    
+    // Play a subtle fade animation
+    RNAnimated.sequence([
+      // Fade out slightly
+      RNAnimated.timing(refreshAnim, {
+        toValue: 0.7,
+        duration: 200,
+        useNativeDriver: false,
+        easing: Easing.out(Easing.ease)
+      }),
+      // Fade back in
+      RNAnimated.timing(refreshAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+        easing: Easing.inOut(Easing.ease)
+      })
+    ]).start();
+    
+    try {
+      // Fetch new cards from "API"
+      const newCards = await fetchMoreCards(2);
+      
+      // Wait for a short moment to make the refresh feel more natural
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Update cards with the new ones at the beginning
+      setCards(prevCards => {
+        const updatedCards = [...newCards, ...prevCards.slice(0, 3)];
+        console.log('MainPage - Cards refreshed, new count:', updatedCards.length);
+        
+        // Update persistent storage
+        persistentCardStorage.cards = updatedCards;
+        return updatedCards;
+      });
+      
+      // Reset current card index to show the first new card
+      setCurrentCardIndex(0);
+      
+      // Provide haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (error) {
+      console.error('Error refreshing cards:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing]);
+  
+  // Listen for refresh signal from navigation params
+  useEffect(() => {
+    if (route?.params?.refreshCards && route?.params?.refreshTimestamp) {
+      refreshCards();
+      
+      // Clear the refresh params after processing
+      setTimeout(() => {
+        if (navigation.setParams) {
+          navigation.setParams({ 
+            refreshCards: undefined,
+            refreshTimestamp: undefined
+          });
+        }
+      }, 100);
+    }
+  }, [route?.params?.refreshTimestamp, refreshCards, navigation]);
 
   // Fade in the entire page when component mounts
   useEffect(() => {
-    // Start with opacity 0 and fade in
+    // Start with opacity 0 and fade in to 1
+    pageOpacity.setValue(0);
     RNAnimated.timing(pageOpacity, {
       toValue: 1,
       duration: 400,
@@ -850,39 +1069,102 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }
   }, [route?.params]); // Only dependent on route params now
 
-  return (
-    <Animated.View style={[styles.container]} entering={FadeInDown.duration(500).delay(200)} exiting={FadeOutDown.duration(50)}>
-      <View style={styles.roundedBox}>
-        <LinearGradient
-          colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
-          start={{ x: 0.1, y: 1 }}
-          end={{ x: 0.9, y: 0.3 }}
-          locations={[0.2, 1]}
-          style={styles.gradientBackground}
-        />
-        
-        {/* Render current card or show empty state */}
-        {cards.length > 0 ? (
-          renderCard(cards[currentCardIndex], currentCardIndex)
-        ) : (
-          <View style={styles.noCardsContainer}>
-            <Text style={styles.noCardsText}>No cards available</Text>
-            <Text style={styles.noCardsSubtext}>Loading new cards...</Text>
-          </View>
-        )}
+  // Add a constant for the minimum number of cards to maintain
+  const MIN_CARDS_THRESHOLD = 3;
 
-        {cards.length > 0 && (
-          <RNAnimated.View style={[styles.text, { opacity: fadeAnim }]}>
-            <Text style={styles.name} numberOfLines={1}>
-              {cards[currentCardIndex]?.name || 'No Name'}
-            </Text>
-            <Text style={styles.price}>
-              {cards[currentCardIndex]?.price || '0 р'}
-            </Text>
+  // Enhance the useEffect hook that checks for empty cards to be more proactive
+  useEffect(() => {
+    // Load cards if the persistent storage is getting low
+    if (cards.length < MIN_CARDS_THRESHOLD && !isRefreshing) {
+      console.log(`MainPage - Cards running low (${cards.length}), preemptively fetching more`);
+      
+      // Set a small delay to prevent multiple fetch requests
+      const fetchTimer = setTimeout(() => {
+        fetchMoreCards(MIN_CARDS_THRESHOLD - cards.length + 1).then(apiCards => {
+          if (apiCards.length > 0) {
+            setCards(prevCards => {
+              // Avoid duplicate fetching by checking if cards were already added
+              if (prevCards.length >= MIN_CARDS_THRESHOLD) {
+                return prevCards;
+              }
+              
+              const updatedCards = [...prevCards, ...apiCards];
+              console.log('MainPage - Added new cards, total count:', updatedCards.length);
+              
+              // Update persistent storage
+              persistentCardStorage.cards = updatedCards;
+              
+              // Reset animation state just in case
+              setIsAnimating(false);
+              pan.setValue({ x: 0, y: 0 });
+              
+              return updatedCards;
+            });
+          }
+        }).catch(error => {
+          console.error('Error fetching cards:', error);
+          // Reset animation state on error
+          setIsAnimating(false);
+          pan.setValue({ x: 0, y: 0 });
+        });
+      }, 300);
+      
+      return () => clearTimeout(fetchTimer);
+    }
+  }, [cards.length, isRefreshing]);
+
+  return (
+    <RNAnimated.View style={{ opacity: pageOpacity, width: '100%', height: '100%' }}>
+      <Animated.View 
+        style={[styles.container]}
+        entering={FadeInDown.duration(500).delay(200)} 
+        exiting={FadeOutDown.duration(50)}
+      >
+        <View style={styles.roundedBox}>
+          <LinearGradient
+            colors={["rgba(205, 166, 122, 0.5)", "transparent"]}
+            start={{ x: 0.1, y: 1 }}
+            end={{ x: 0.9, y: 0.3 }}
+            locations={[0.2, 1]}
+            style={styles.gradientBackground}
+          />
+          
+          {/* Always show something, even during transitions */}
+          {isAnimating && cards.length === 0 ? (
+            renderEmptyState()
+          ) : cards.length > 0 ? (
+            renderCard(cards[currentCardIndex], currentCardIndex)
+          ) : (
+            renderEmptyState()
+          )}
+
+          {/* Always show text, with placeholder if no cards */}
+          <RNAnimated.View style={{ opacity: refreshAnim, width: '100%', height: '100%' }}>
+          <RNAnimated.View style={[styles.text, { opacity: fadeAnim}]}>
+            {cards.length > 0 ? (
+              <>
+                <Text style={styles.name} numberOfLines={1}>
+                  {cards[currentCardIndex]?.name || 'No Name'}
+                </Text>
+                <Text style={styles.price}>
+                  {cards[currentCardIndex]?.price || '0 р'}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.name} numberOfLines={1}>
+                  Loading...
+                </Text>
+                <Text style={styles.price}>
+                  Please wait
+                </Text>
+              </>
+            )}
           </RNAnimated.View>
-        )}
-      </View>
-    </Animated.View>
+          </RNAnimated.View>
+        </View>
+      </Animated.View>
+    </RNAnimated.View>
   );
 };
 

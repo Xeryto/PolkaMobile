@@ -496,6 +496,21 @@ export default function App() {
 
   // Improved screen transition with proper lifecycle
   const handleNavPress = (screen: ScreenName, params?: any) => {
+    // Special case: If pressing Home while already on Home, refresh cards instead of navigating
+    if (screen === 'Home' && currentScreen === 'Home') {
+      // Update params with a refreshCards signal and timestamp to ensure it's unique each time
+      setScreenParams(prev => ({
+        ...prev,
+        Home: {
+          ...prev.Home,
+          refreshCards: true,
+          refreshTimestamp: Date.now()
+        }
+      }));
+      // Skip the screen transition animation
+      return;
+    }
+    
     if (screen === currentScreen && !params) return;
     
     setIsTransitioning(true);
