@@ -27,7 +27,7 @@ interface WelcomeScreenProps {
 }
 
 const { width, height } = Dimensions.get('window');
-const LOGO_SIZE = Math.min(width, height) * 0.25; // 25% of the smallest dimension
+const LOGO_SIZE = Math.min(width, height) * 0.27; // 25% of the smallest dimension
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) => {
 	const [showLoginScreen, setShowLoginScreen] = useState(false);
@@ -250,6 +250,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 							style={styles.logoContainer}
 						>
 							<Logo width={LOGO_SIZE} height={LOGO_SIZE} />
+							<Text style={styles.logoText}>ПОЛКА</Text>
 						</Animated.View>
 						
 						<Animated.View 
@@ -269,9 +270,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 									}}
 								>
 									<LinearGradient
-										colors={['#FC8CAF', '#9EA7FF', '#A3FFD0']}
-										start={{ x: 0, y: 0 }}
-										end={{ x: 1, y: 1 }}
+										colors={['#DCD3DE', '#9535EA', '#E222F0']}
+										start={{ x: 0.49, y: 0 }}
+										end={{ x: 0.51, y: 1 }}
+										locations={[0.55, 0.77, 1]}
 										style={styles.registerButtonBorder}
 									/>
 								</RNAnimated.View>
@@ -285,21 +287,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 										transform: [{ scale: buttonScaleValue }],
 									}}
 								>
-									<TouchableOpacity
+									<Pressable
 										onPress={handleRegisterPress}
 										disabled={isSpinning}
 										style={styles.pressableContainer}
 									>
-										<LinearGradient
-											colors={['#E222F0', '#4747E4', '#E66D7B']}
-											locations={[0.15, 0.56, 1]}
-											start={{ x: 0.48, y: 1 }}
-											end={{ x: 0.52, y: 0 }}
-											style={styles.registerButtonGradient}
-										>
 											<Text style={styles.registerButtonText}>Прикоснись к AI</Text>
-										</LinearGradient>
-									</TouchableOpacity>
+									</Pressable>
 								</RNAnimated.View>
 							</View>
 						</Animated.View>
@@ -351,22 +345,12 @@ const styles = StyleSheet.create({
 	logoContainer: {
 		alignItems: 'center',
 		justifyContent: 'flex-start',
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.25,
-		shadowRadius: 8,
-		elevation: 8,
 	},
 	registerButtonContainer: {
-		width: 300, // Fixed width to ensure consistent size
-		height: 80, // Fixed height for the button
+		width: width*0.75, // Fixed width to ensure consistent size
+		height: height*0.09, // Fixed height for the button
 		borderRadius: 41,
 		overflow: 'hidden',
-		...Platform.select({
-			android: {
-				elevation: 8,
-			}
-		}),
 		position: 'relative',
 	},
 	registerButtonBorder: {
@@ -378,6 +362,9 @@ const styles = StyleSheet.create({
 		height: '100%',
 		borderRadius: 38,
 		overflow: 'hidden',
+		alignItems: 'center',
+		justifyContent: 'center',
+		backgroundColor: '#DCD3DE',
 	},
 	registerButtonGradient: {
 		flex: 1,
@@ -389,7 +376,7 @@ const styles = StyleSheet.create({
 	registerButtonText: {
 		fontFamily: 'IgraSans',
 		fontSize: 15,
-		color: 'white',
+		color: '#A000B0',
 	},
 	loginContainer: {
 		alignItems: 'center',
@@ -401,9 +388,9 @@ const styles = StyleSheet.create({
 		marginBottom: 10,
 	},
 	loginButton: {
-		backgroundColor: '#9A7859',
+		backgroundColor: '#4A3120',
 		borderRadius: 41,
-		paddingVertical: 30,
+		paddingVertical: 27,
 		paddingHorizontal: 45,
 		alignItems: 'center',
 		shadowColor: '#000',
@@ -415,15 +402,16 @@ const styles = StyleSheet.create({
 	loginButtonText: {
 		fontFamily: 'IgraSans',
 		fontSize: 15,
-		color: '#E0D6CC',
+		color: '#F2ECE7',
 	},
 	shadowWrap: {
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.25,
-		shadowRadius: 4,
-		elevation: 5,
 		justifyContent: 'center',
+	},
+	logoText: {
+		fontFamily: 'IgraSans',
+		fontSize: 22,
+		color: '#4A3120',
+		marginTop: 15,
 	},
 });
 

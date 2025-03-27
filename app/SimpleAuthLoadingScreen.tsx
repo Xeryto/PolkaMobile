@@ -19,6 +19,11 @@ const SimpleAuthLoadingScreen: React.FC<SimpleAuthLoadingScreenProps> = () => {
       <Text style={styles.poweredByText}>
         Powered by AI
       </Text>
+
+
+      <Text style={[styles.poweredByText, { position: 'absolute', bottom: height*0.05 }]}>
+        ПОЛКА
+      </Text>
     </View>
   );
 };

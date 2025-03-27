@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -10,19 +10,30 @@ import {
   Keyboard,
   Platform,
   Dimensions,
-  Pressable
+  Pressable,
+  ScrollView,
+  LayoutChangeEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { 
+  FadeIn, 
+  FadeInDown, 
+  FadeOutDown, 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withTiming,
+} from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
-
+import Tick from '../assets/Tick';
+import Cancel from '../assets/Cancel.svg';
 const { width, height } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width, height) * 0.275;
 
 interface BrandSearchScreenProps {
   onComplete: (selectedBrands: string[]) => void;
   onBack?: () => void; // Optional back handler
+  initialBrands?: string[]; // Initial selected brands
 }
 
 // Sample popular brands based on style preference
@@ -34,16 +45,48 @@ const getPopularBrands = () => {
   ];
 };
 
-const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBack }) => {
+const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBack, initialBrands = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(initialBrands);
   const [popularBrands, setPopularBrands] = useState<string[]>([]);
+  const [visibleBubblesHeight, setVisibleBubblesHeight] = useState(0);
   
+  // Animation values
+  const searchResultsHeight = useSharedValue(height*0.125);
+  const searchResultsOpacity = useSharedValue(0);
+  const bubblesHeight = useSharedValue(height*0.2);
   // Initialize popular brands based on style preference
   useEffect(() => {
     setPopularBrands(getPopularBrands());
   }, []);
+  
+  // Handle animation when search becomes active
+  useEffect(() => {
+    if (isSearchActive) {
+      searchResultsHeight.value = withTiming(height*0.35, { duration: 300 });
+      searchResultsOpacity.value = withTiming(1, { duration: 300 });
+      bubblesHeight.value = withTiming(height*0.125, { duration: 300 });
+    } else {
+      searchResultsHeight.value = withTiming(height*0.125, { duration: 300 });
+      searchResultsOpacity.value = withTiming(0, { duration: 300 });
+      bubblesHeight.value = withTiming(height*0.2, { duration: 300 });
+    }
+  }, [isSearchActive]);
+  
+  // Animated styles for search results container
+  const searchResultsAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      height: searchResultsHeight.value,
+      opacity: searchResultsOpacity.value,
+    };
+  });
+
+  const bubblesAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      height: bubblesHeight.value,
+    };
+  });
   
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -59,11 +102,10 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
       if (prev.includes(brand)) {
         return prev.filter(b => b !== brand);
       }
-      // Otherwise add it (limited to max 3 brands)
-      else if (prev.length < 3) {
+      // Otherwise add it (no limit)
+      else {
         return [...prev, brand];
       }
-      return prev;
     });
   };
   
@@ -77,6 +119,12 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
     onComplete(selectedBrands);
   };
   
+  // Handle bubble container layout to measure height
+  const handleBubblesLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setVisibleBubblesHeight(height > 0 ? height : 0);
+  };
+  
   // Filter brands based on search query
   const filteredBrands = searchQuery.length > 0
     ? popularBrands.filter(brand => 
@@ -84,22 +132,42 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
       )
     : popularBrands;
   
+  // Render a selected brand bubble
+  const renderBrandBubble = (brand: string, index: number) => (
+    <View key={`bubble-${brand}`} style={{flexDirection: 'row', alignItems: 'center', marginRight: 11, marginBottom: 5}}>
+      <View style={styles.brandBubble}>
+        <Text style={styles.brandBubbleText}>{brand}</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.removeBubbleIcon}
+        onPress={() => handleBrandSelect(brand)}
+      >
+        <Cancel width={18} height={18} />
+      </TouchableOpacity>
+    </View>
+  );
+  
   const renderBrandItem = ({ item }: { item: string }) => (
     <Pressable
       style={({pressed}) => [
         styles.brandItem,
-        selectedBrands.includes(item) && styles.selectedBrandItem,
         pressed && styles.pressedItem
       ]}
       onPress={() => handleBrandSelect(item)}
       android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
     >
-      <Text style={[
-        styles.brandText,
-        selectedBrands.includes(item) && styles.selectedBrandText
-      ]}>
-        {item}
-      </Text>
+      <View style={styles.brandItemContent}>
+        <Text style={
+          styles.brandText}>
+          {item}
+        </Text>
+        
+        {selectedBrands.includes(item) && (
+          <View style={styles.tickContainer}>
+            <Tick width={20} height={20} />
+          </View>
+        )}
+      </View>
     </Pressable>
   );
   
@@ -140,7 +208,8 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
               <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
             </Animated.View>
             
-            
+            <View style={styles.searchAndResultsContainer}>
+            {/* Search Container */}
             <Animated.View 
               entering={FadeInDown.duration(500).delay(50)}
               style={[
@@ -163,46 +232,76 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
                 {isSearchActive && (
                   <Animated.View
                     entering={FadeInDown.duration(300)}
+                    exiting={FadeOutDown.duration(200)}
                     style={styles.cancelButtonContainer}
                   >
-                    <Pressable
+                    <TouchableOpacity
                       onPress={handleCancelSearch}
-                      style={({pressed}) => [
-                        styles.cancelButton,
-                        pressed && styles.pressedItem
-                      ]}
-                      android_ripple={{color: '#4A3120', borderless: false}}
+                      style={styles.cancelButton}
                     >
                       <Text style={styles.cancelButtonText}>Отмена</Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   </Animated.View>
                 )}
               </View>
             </Animated.View>
             
-            <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.brandsContainer}>
+            
+            {/* Animated Search Results Container */}
+            <Animated.View 
+              style={[
+                styles.searchResultsContainer,
+                searchResultsAnimatedStyle,
+                {
+                  paddingTop: isSearchActive ? 110 : 0,
+                }
+              ]}
+            >
               <FlatList
                 data={filteredBrands}
                 renderItem={renderBrandItem}
                 keyExtractor={(item) => item}
                 numColumns={1}
                 contentContainerStyle={styles.brandsList}
+                showsVerticalScrollIndicator={false}
               />
             </Animated.View>
+
+            {/* Selected brands bubbles */}
             
-            <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.buttonContainer}>
-              <Pressable 
-                style={({pressed}) => [
-                  styles.continueButton,
-                  pressed && styles.pressedItem
+              <Animated.View 
+                entering={FadeInDown.duration(300)}
+                style={[
+                  styles.selectedBubblesContainer,
+                  bubblesAnimatedStyle
                 ]}
+                onLayout={handleBubblesLayout}
+              >
+                <ScrollView 
+                  horizontal={false}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.selectedBubblesContent}
+                  style={{borderRadius: 25}}
+                >
+                  <View style={styles.bubblesRow}>
+                    {selectedBrands.map(renderBrandBubble)}
+                  </View>
+                </ScrollView>
+              </Animated.View>
+            
+            </View>
+            
+            <Animated.View 
+              entering={FadeInDown.duration(500).delay(100)} 
+              style={styles.buttonContainer}>
+              <TouchableOpacity 
+                style={styles.continueButton}
                 onPress={handleContinue}
-                android_ripple={{color: '#4A3120', borderless: false}}
               >
                 <Text style={styles.continueButtonText}>
                   Продолжить
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </Animated.View>
           </Animated.View>
         </View>
@@ -284,25 +383,26 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
       },
     }),
+    justifyContent:'center',
   },
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 8,
+    width: '100%',
+    height: LOGO_SIZE,
+    marginBottom: 25,
+  },
+  searchAndResultsContainer: {
+    width: '100%',
+    height: 0.7*height-LOGO_SIZE-52-25,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   searchContainer: {
     width: '100%',
     borderRadius: 41,
     backgroundColor: '#E0D6CC',
-    marginBottom: 20,
+    zIndex: 10,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -348,34 +448,100 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#000',
   },
+  selectedBubblesContainer: {
+    width: '100%',
+    marginVertical: 10,
+    borderRadius: 41,
+  },
+  selectedBubblesContent: {
+    flexDirection: 'column',
+  },
+  bubblesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
+  brandBubble: {
+    backgroundColor: '#DCC1A5',
+    borderRadius: 41,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    margin: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+        overflow: 'hidden'
+      },
+    }),
+  },
+  brandBubbleText: {
+    fontFamily: 'IgraSans',
+    fontSize: 22,
+    color: '#000',
+  },
+  removeBubbleIcon: {
+    marginLeft: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 41,
+    backgroundColor: '#DCB0A5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  searchResultsContainer: {
+    width: '100%',
+    zIndex: 5,
+    backgroundColor: '#E0D6CC',
+    borderRadius: 41,
+    marginTop: -110,
+    height: 110,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
   brandsContainer: {
     width: '100%',
     flex: 1,
   },
   brandsList: {
-    paddingBottom: 10,
+    paddingVertical: 8,
   },
   brandItem: {
     flex: 1,
     margin: 6,
     padding: 15,
-    borderRadius: 12,
-    backgroundColor: '#E0D6CC',
+  },
+  brandItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 60,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-        overflow: 'hidden'
-      },
-    }),
   },
   selectedBrandItem: {
     backgroundColor: '#CDA67A',
@@ -385,22 +551,15 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontFamily: 'IgraSans',
-    fontSize: 16,
-    color: '#4A3120',
-    textAlign: 'center',
+    fontSize: 20,
+    color: '#000',
   },
   selectedBrandText: {
     color: '#FFF',
   },
-  selectedCount: {
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  selectedCountText: {
-    fontFamily: 'REM',
-    fontSize: 14,
-    color: '#4A3120',
-    textAlign: 'center',
+  tickContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonContainer: {
     width: '100%',
@@ -412,7 +571,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 25,
     alignItems: 'center',
-    //marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -441,6 +599,16 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 38,
     color: '#fff',
+  },
+  selectedBubblesHeader: {
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  selectedBubblesTitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 12,
+    color: '#4A3120',
   },
 });
 

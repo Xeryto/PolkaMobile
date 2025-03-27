@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Pressable, SafeAreaView, Dimensions, Easing, Animated as RNAnimated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable, SafeAreaView, Dimensions, Easing, Animated as RNAnimated, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import Cancel from './assets/Cancel.svg';
 import { RoundedRect, Shadow, Canvas } from '@shopify/react-native-skia';
 
@@ -331,7 +331,7 @@ const Cart = ({ navigation }: CartProps) => {
       const deliveryCost = parseInt(item.delivery.cost.replace(/\D/g, ''));
       
       return total + price + deliveryCost;
-    }, 0).toLocaleString().replace(/\s/g, '') + 'р';
+    }, 0).toLocaleString() + 'р';
   };
 
     
@@ -371,7 +371,7 @@ const Cart = ({ navigation }: CartProps) => {
               {cartItems.map((item, index) => (
                 <Animated.View 
                   key={item.cartItemId || `${item.id}-${item.size}-${index}`}
-                  entering={FadeInDown.duration(500).delay(100 + index * 50)}
+                  entering={FadeInDown.duration(500).delay(50 + index * 50)}
                   style={styles.cartItem}
                 >
                   <Pressable 
@@ -416,7 +416,7 @@ const Cart = ({ navigation }: CartProps) => {
                       <View style={styles.circle}>
                       <Canvas style={{ width: 41, height: 41, backgroundColor: 'transparent' }}>
                         <RoundedRect x={0} y={0} width={41} height={41} r={20.5} color="white">
-                          <Shadow dx={0} dy={4} blur={4} color="rgba(0,0,0,0.25)" inner />
+                          <Shadow dx={0} dy={4} blur={4} color="rgba(0,0,0,0.5)" inner />
                         </RoundedRect>
                       </Canvas>
                       </View>
@@ -427,20 +427,21 @@ const Cart = ({ navigation }: CartProps) => {
             </ScrollView>
             
             <Animated.View 
-              entering={FadeInDown.duration(500).delay(250)}
               style={styles.checkoutContainer}
             >
-              <View style={styles.summaryContainer}>
+              <Animated.View style={styles.summaryContainer} entering={FadeInDown.duration(500).delay(200)}>
                 <View style={styles.horizontalLine}/>
                 {/* Simplified checkout - only show the final total */}
                 <View style={styles.totalContainer}>
                   <Text style={styles.totalText}>ИТОГО {calculateTotal()}</Text>
                 </View>
-              </View>
-              
-              <Pressable style={styles.checkoutButton}>
+              </Animated.View>
+              <Animated.View //style={styles.checkoutButton} 
+              entering={FadeInDown.duration(500).delay(250)}>
+              <TouchableOpacity style={styles.checkoutButton}>
                 <Text style={styles.checkoutButtonText}>ОФОРМИТЬ ЗАКАЗ</Text>
-              </Pressable>
+              </TouchableOpacity>
+              </Animated.View>
             </Animated.View>
           </>
         )}

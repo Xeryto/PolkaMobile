@@ -46,9 +46,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onForgotPass
     let valid = true;
     const newErrors = { usernameOrEmail: '', password: '', general: '' };
 
-    const illegalCharRegex = /[^a-zA-Z0-9#$-_!]/; // Only allow letters, numbers, and @#$-_!
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
-    
+    const illegalCharRegex = /[^a-zA-Z0-9#$-_!]/; // Only allow letters, numbers, and #$-_!
+    const emailRegex = /^[a-zA-Z0-9#$-_!]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/; // Basic email validation
+
     // Validate username/email
     if (!usernameOrEmail.trim()) {
       newErrors.usernameOrEmail = 'Ник или email обязателен';
@@ -56,6 +57,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onForgotPass
     } else if (illegalCharRegex.test(usernameOrEmail)) {
       newErrors.usernameOrEmail = 'Ник или email содержит недопустимые символы';
       valid = false;
+    } else if (usernameOrEmail.includes('@')) {
+      // If it contains '@', it should match email format
+      if (!emailRegex.test(usernameOrEmail)) {
+        newErrors.usernameOrEmail = 'Неверный формат email';
+        valid = false;
+      }
+    } else {
+      // If it doesn't contain '@', it's considered a username, so no @ allowed
+      if (usernameOrEmail.includes('@')) {
+        newErrors.usernameOrEmail = 'Ник не может содержать символ @';
+        valid = false;
+      }
     }
     
     // Validate password
@@ -296,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FF6464',
     marginTop: 4,
+    marginLeft: 16,
   },
   errorContainer: {
     backgroundColor: 'rgba(255, 100, 100, 0.2)',

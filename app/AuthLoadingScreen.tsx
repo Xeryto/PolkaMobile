@@ -125,6 +125,10 @@ const AuthLoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
       >
         Powered by AI
       </Animated.Text>
+      
+      <Animated.Text style={[styles.poweredByText, { opacity: fadeAnim, position: 'absolute', bottom: height*0.05 }]}>
+        ПОЛКА
+      </Animated.Text>
     </Animated.View>
   );
 };

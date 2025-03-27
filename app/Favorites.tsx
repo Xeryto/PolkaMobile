@@ -811,7 +811,7 @@ const MainContent = ({
       styles.topBox,
       { backgroundColor: activeView === 'friends' ? '#C8A688' : '#AE8F72' }
     ]}
-    entering={FadeInDown.duration(400).delay(200)}
+    entering={FadeInDown.duration(500).delay(200)}
     //exiting={FadeOutDown.duration(50)}
     >
       <View style={{ flex: 1, borderRadius: 41 }}>
@@ -864,7 +864,7 @@ const MainContent = ({
       styles.bottomBox,
       { backgroundColor: activeView === 'friends' ? '#AE8F72' : '#C8A688' }
     ]}
-    entering={FadeInDown.duration(400).delay(400)}
+    entering={FadeInDown.duration(500).delay(450)}
     //exiting={FadeOutDown.duration(50)}
     >
       {Platform.OS === 'ios' ? (

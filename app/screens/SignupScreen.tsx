@@ -455,6 +455,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FF6464',
     marginTop: 4,
+    marginLeft: 16,
   },
   errorContainer: {
     backgroundColor: 'rgba(255, 100, 100, 0.2)',

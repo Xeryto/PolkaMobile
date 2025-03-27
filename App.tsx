@@ -702,6 +702,7 @@ export default function App() {
     return (
       <GestureHandlerRootView style={{flex: 1}}>
         <BrandSearchScreen 
+          initialBrands={selectedBrands}
           onComplete={handleBrandSearchComplete}
           onBack={() => {
             // Go back to confirmation screen

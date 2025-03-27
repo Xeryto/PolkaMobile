@@ -88,8 +88,8 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
       if (prev.includes(id)) {
         return prev.filter(styleId => styleId !== id);
       }
-      // Otherwise add it (limited to max 5 styles)
-      else if (prev.length < 5) {
+      // Otherwise add it (limited to max 2 styles)
+      else if (prev.length < 2) {
         return [...prev, id];
       }
       return prev;

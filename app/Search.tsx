@@ -14,7 +14,7 @@ import {
   ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOutDown, FadeOutUp } from 'react-native-reanimated';
 import { AntDesign } from '@expo/vector-icons';
 
 // Create animated text component using proper method for this version
@@ -315,7 +315,7 @@ const Search = ({ navigation }: SearchProps) => {
 
   const renderItem = ({ item, index }: { item: SearchItem, index: number }) => (
     <Animated.View
-      entering={FadeInDown.duration(400).delay(100 + index * 50)}
+      entering={FadeInDown.duration(300).delay(100 + index * 50)}
       style={styles.searchItem}
     >
       <Pressable 
@@ -334,9 +334,9 @@ const Search = ({ navigation }: SearchProps) => {
   );
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={styles.container} exiting={FadeOutDown.duration(50)}>
       <Animated.View 
-        entering={FadeInDown.duration(400).delay(200)}
+        entering={FadeInDown.duration(500).delay(200)}
         style={[
           styles.searchContainer,
           isSearchActive && styles.searchContainerActive
@@ -358,7 +358,7 @@ const Search = ({ navigation }: SearchProps) => {
           {isSearchActive && (
             <Animated.View
               entering={FadeInDown.duration(300)}
-              exiting={FadeOutUp.duration(200)}
+              exiting={FadeOutDown.duration(100)}
               style={styles.cancelButtonContainer}
             >
               <TouchableOpacity
@@ -374,7 +374,8 @@ const Search = ({ navigation }: SearchProps) => {
       </Animated.View>
       {isSearchActive && (
         <Animated.View 
-          entering={FadeInDown.duration(400).delay(250)}
+          entering={FadeInDown.duration(500)}
+          exiting={FadeOutDown.duration(100)}
           style={styles.filtersContainer}
         >
           {/* Main Filter Buttons */}
@@ -456,14 +457,14 @@ const Search = ({ navigation }: SearchProps) => {
         </Animated.View>
       )}
       <Animated.View 
-        entering={FadeIn.duration(500).delay(300)}
+        entering={FadeInDown.duration(500).delay(250)}
         style={[
           styles.roundedBox,
           !isSearchActive && styles.roundedBoxInitial
         ]}
       >
         <Animated.View 
-          entering={FadeInDown.duration(400).delay(300)}
+          //entering={FadeInDown.duration(400).delay(300)}
           style={{flex: 1}}
         >
           {filteredResults.length === 0 ? (
@@ -489,14 +490,14 @@ const Search = ({ navigation }: SearchProps) => {
         </Animated.View>
         {!isSearchActive && (
           <AnimatedText 
-            entering={FadeIn.duration(500)}
+            entering={FadeInDown.duration(300)}
             style={styles.popularItemsText}
           >
             ПОПУЛЯРНОЕ
           </AnimatedText>
         )}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
   },
   roundedBox: {
     width: '88%',
-    height: '75%',
+    height: '72%',
     borderRadius: 41,
     backgroundColor: '#F2ECE7',
     position: 'relative',
@@ -777,7 +778,7 @@ const styles = StyleSheet.create({
     marginBottom: '5%',
   },
   roundedBoxInitial: {
-    height: '82%',
+    height: '80%',
   },
   popularItemsText: {
     fontFamily: 'Igra Sans',
