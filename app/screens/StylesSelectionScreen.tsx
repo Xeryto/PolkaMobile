@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -10,15 +10,18 @@ import {
   ImageBackground,
   Dimensions,
   Image,
-  Pressable
+  Pressable,
+  NativeSyntheticEvent,
+  NativeScrollEvent
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
-
+import Scroll from '../assets/Scroll.svg';
 const { width, height } = Dimensions.get('window');
-const LOGO_SIZE = Math.min(width, height) * 0.2;
+const LOGO_SIZE = Math.min(width, height) * 0.275;
+const ITEM_WIDTH = width * 0.5; // Style item width slightly wider than 50%
 
 // Style option interface
 interface StyleOption {
@@ -78,6 +81,7 @@ interface StylesSelectionScreenProps {
 
 const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplete, onBack }) => {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [showScrollHint, setShowScrollHint] = useState(true);
   
   // Filter style options based on gender preference if needed
   const styleOptions = STYLE_OPTIONS;
@@ -100,28 +104,44 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
     onComplete(selectedStyles);
   };
   
-  const renderStyleItem = ({ item }: { item: StyleOption }) => (
-    <Pressable
-      style={({pressed}) => [
-        styles.styleItem,
-        selectedStyles.includes(item.id) && styles.selectedStyleItem,
-        pressed && styles.pressedStyleItem
-      ]}
-      onPress={() => handleStyleSelect(item.id)}
-      android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
-    >
-        <View style={styles.styleOverlay}>
-          <Text style={styles.styleName}>{item.name}</Text>
-          <Text style={styles.styleDescription}>{item.description}</Text>
-        </View>
-        
-        {selectedStyles.includes(item.id) && (
-          <View style={styles.checkmarkContainer}>
-            <Text style={styles.checkmark}>✓</Text>
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Hide scroll hint when user starts scrolling
+    if (event.nativeEvent.contentOffset.y > 5 && showScrollHint) {
+      setShowScrollHint(false);
+    }
+  };
+  
+  const renderStyleItem = ({ item, index }: { item: StyleOption, index: number }) => {
+    // Alternate alignment for chess board pattern
+    const isEven = index % 2 === 0;
+    
+    return (
+      <View style={[
+        styles.styleItemContainer,
+        isEven ? styles.alignLeft : styles.alignRight
+      ]}>
+        <Pressable
+          style={({pressed}) => [
+            styles.styleItem,
+            selectedStyles.includes(item.id) && styles.selectedStyleItem,
+            pressed && styles.pressedStyleItem
+          ]}
+          onPress={() => handleStyleSelect(item.id)}
+          android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
+        >
+          <View style={styles.styleOverlay}>
+            <Text style={[styles.styleName, selectedStyles.includes(item.id) && styles.styleNameSelected]}>{item.name}</Text>
           </View>
-        )}
-    </Pressable>
-  );
+          
+          {selectedStyles.includes(item.id) && (
+            <View style={styles.checkmarkContainer}>
+              <Text style={styles.checkmark}>✓</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+    );
+  };
   
   return (
     <LinearGradient
@@ -161,29 +181,50 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
               <Logo width={LOGO_SIZE} height={LOGO_SIZE} />
             </View>
             
+            {/* Selected styles counter */}
+            <Animated.View entering={FadeInDown.duration(500).delay(25)} style={styles.counterContainer}>
+              <Text style={styles.counterText}>
+                {selectedStyles.length}/2
+              </Text>
+            </Animated.View>
+            
             <Animated.View entering={FadeInDown.duration(500).delay(50)} style={styles.stylesContainer}>
+              {showScrollHint && (
+                <Animated.View 
+                  entering={FadeIn.duration(500)} 
+                  exiting={FadeOut.duration(300)}
+                  style={styles.scrollHintContainer}
+                >
+                  <Text style={styles.scrollHintText}>
+                    Листай
+                  </Text>
+                  <Scroll width={26} height={26}/>
+                </Animated.View>
+              )}
+              
               <FlatList
                 data={styleOptions}
                 renderItem={renderStyleItem}
                 keyExtractor={(item) => item.id}
-                numColumns={2}
-                contentContainerStyle={styles.stylesList}
+                numColumns={1}
+                //contentContainerStyle={styles.stylesList}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                style={styles.stylesList}
+                showsVerticalScrollIndicator={false}
               />
             </Animated.View>
-            
-            <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.buttonContainer}>
-              <Pressable 
-                style={({pressed}) => [
-                  styles.continueButton,
-                  pressed && styles.buttonPressed
-                ]}
+            <Animated.View 
+              entering={FadeInDown.duration(500).delay(100)} 
+              style={styles.buttonContainer}>
+              <TouchableOpacity 
+                style={styles.continueButton}
                 onPress={handleContinue}
-                android_ripple={{color: '#4A3120', borderless: false}}
               >
                 <Text style={styles.continueButtonText}>
                   Продолжить
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </Animated.View>
           </Animated.View>
         </View>
@@ -269,53 +310,70 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 8,
+    marginBottom: 15,
   },
-  headerText: {
+  counterContainer: {
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  counterText: {
     fontFamily: 'IgraSans',
-    fontSize: 24,
-    color: '#4A3120',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subHeaderText: {
-    fontFamily: 'REM',
     fontSize: 14,
-    color: '#4A3120',
+    color: '#000',
     textAlign: 'center',
-    marginBottom: 20,
-    opacity: 0.8,
+  },
+  scrollHintContainer: {
+    position: 'absolute',
+    bottom:-5,
+    right: 0,
+    alignItems: 'flex-end',
+    zIndex: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+  },
+  scrollHintText: {
+    fontFamily: 'IgraSans',
+    fontSize: 14,
+    lineHeight: 26,
+    color: '#000',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   stylesContainer: {
     width: '100%',
+    height: height*0.375+30+10,
+    position: 'relative',
   },
   stylesList: {
-    paddingBottom: 10,
+    borderRadius: 41,
+    //paddingBottom: 10,
+  },
+  styleItemContainer: {
+    width: '100%',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+  alignLeft: {
+    alignItems: 'flex-start',
+  },
+  alignRight: {
+    alignItems: 'flex-end',
   },
   styleItem: {
-    flex: 1,
-    height: 100,
-    margin: 6,
-    borderRadius: 12,
+    width: '55%',
+    height: height*0.125,
+    marginHorizontal: 5,
+    borderRadius: 41,
     backgroundColor: '#E0D6CC',
-    overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 6,
       },
     }),
   },
@@ -323,23 +381,26 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   selectedStyleItem: {
-    backgroundColor: '#CDA67A',
+    backgroundColor: '#9A7859',
   },
   buttonPressed: {
     opacity: 0.8,
   },
   styleOverlay: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   styleName: {
     fontFamily: 'IgraSans',
-    fontSize: 16,
-    color: '#4A3120',
+    fontSize: 20,
+    color: '#000',
     textAlign: 'center',
     marginBottom: 4,
+  },
+  styleNameSelected: {
+    color: '#E0D6CC',
   },
   styleDescription: {
     fontFamily: 'REM',
@@ -378,12 +439,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   continueButton: {
+    marginTop: height*0.05,
     backgroundColor: '#E0D6CC',
     borderRadius: 41,
     paddingVertical: 16,
     paddingHorizontal: 25,
     alignItems: 'center',
-    //marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
