@@ -132,12 +132,6 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplet
           <View style={styles.styleOverlay}>
             <Text style={[styles.styleName, selectedStyles.includes(item.id) && styles.styleNameSelected]}>{item.name}</Text>
           </View>
-          
-          {selectedStyles.includes(item.id) && (
-            <View style={styles.checkmarkContainer}>
-              <Text style={styles.checkmark}>✓</Text>
-            </View>
-          )}
         </Pressable>
       </View>
     );

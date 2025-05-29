@@ -53,6 +53,16 @@ interface FriendItem {
   name: string;
   image: any;
   username: string;
+  status: 'friend' | 'request_received' | 'request_sent' | 'not_friend'; // Added status field
+}
+
+// Interface for friend request items
+interface FriendRequestItem {
+  id: number;
+  name: string;
+  image: any;
+  username: string;
+  requestId: number; // Unique ID for the request
 }
 
 // Interface for recommended items for friends
@@ -75,9 +85,6 @@ const ANIMATION_CONFIG = {
 // Disable complex animations on Android for better performance
 const USE_ANIMATIONS = Platform.OS === 'ios';
 
-// Define a union type for items that can be either FavoriteItem or FriendItem
-type ItemType = FavoriteItem | FriendItem;
-
 const Favorites = ({ navigation }: FavoritesProps) => {
   // Basic state
   const [activeView, setActiveView] = useState<'friends' | 'saved'>('friends');
@@ -88,6 +95,41 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [customRecommendations, setCustomRecommendations] = useState<{[key: number]: RecommendedItem[]}>({});
+  
+  // New state for friend requests and management
+  const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
+  const [friendItems, setFriendItems] = useState<FriendItem[]>([
+    { 
+      id: 5, 
+      name: 'FRIEND ITEM 1', 
+      image: require('./assets/Vision2.png'),
+      username: 'friend1',
+      status: 'friend'
+    },
+    { 
+      id: 6, 
+      name: 'FRIEND ITEM 2', 
+      image: require('./assets/Vision.png'),
+      username: 'friend2',
+      status: 'friend'
+    },
+    { 
+      id: 7, 
+      name: 'FRIEND ITEM 3', 
+      image: require('./assets/Vision2.png'),
+      username: 'friend3',
+      status: 'friend'
+    },
+    { 
+      id: 8,
+      name: 'FRIEND ITEM 4', 
+      image: require('./assets/Vision.png'),
+      username: 'friend4',
+      status: 'friend'
+    },
+  ]);
+  const [pendingRemoval, setPendingRemoval] = useState<FriendItem | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
   // Opacity values for the main view and search view
   const mainViewOpacity = useSharedValue(1);
@@ -125,30 +167,21 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     },
   ];
 
-  const friendItems: FriendItem[] = [
+  // Sample friend request data
+  const sampleFriendRequests: FriendRequestItem[] = [
     { 
-      id: 5, 
-      name: 'FRIEND ITEM 1', 
-      image: require('./assets/Vision2.png'),
-      username: 'friend1'
-    },
-    { 
-      id: 6, 
-      name: 'FRIEND ITEM 2', 
+      id: 9, 
+      name: 'FRIEND REQUEST 1', 
       image: require('./assets/Vision.png'),
-      username: 'friend2'
+      username: 'request1',
+      requestId: 101
     },
     { 
-      id: 7, 
-      name: 'FRIEND ITEM 3', 
+      id: 10, 
+      name: 'FRIEND REQUEST 2', 
       image: require('./assets/Vision2.png'),
-      username: 'friend3'
-    },
-    { 
-      id: 8,
-      name: 'FRIEND ITEM 4', 
-      image: require('./assets/Vision.png'),
-      username: 'friend4'
+      username: 'request2',
+      requestId: 102
     },
   ];
 
@@ -177,6 +210,18 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       { id: 402, name: 'Для друга 4 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
       { id: 403, name: 'Для друга 4 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
       { id: 404, name: 'Для друга 4 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
+    ],
+    9: [
+      { id: 501, name: 'Для друга 5 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
+      { id: 502, name: 'Для друга 5 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
+      { id: 503, name: 'Для друга 5 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
+      { id: 504, name: 'Для друга 5 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
+    ],
+    10: [
+      { id: 601, name: 'Для друга 6 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
+      { id: 602, name: 'Для друга 6 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
+      { id: 603, name: 'Для друга 6 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
+      { id: 604, name: 'Для друга 6 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
     ],
   };
   
@@ -393,11 +438,48 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }, delay);
   };
 
-  // Filter friends based on search query
+  // Filter friends based on search query with sample status data
   const filteredFriends = searchQuery.length > 0
-    ? friendItems.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? [
+        ...friendItems.filter(item => 
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.username.toLowerCase().includes(searchQuery.toLowerCase())
+        ),
+        // Add some non-friend users for demonstration
+        ...[
+          { 
+            id: 11, 
+            name: 'NEW USER 1', 
+            image: require('./assets/Vision.png'),
+            username: 'newuser1',
+            status: 'not_friend'
+          },
+          { 
+            id: 12, 
+            name: 'NEW USER 2', 
+            image: require('./assets/Vision2.png'),
+            username: 'newuser2',
+            status: 'not_friend'
+          },
+          { 
+            id: 13, 
+            name: 'REQUEST PENDING 1', 
+            image: require('./assets/Vision.png'),
+            username: 'pending1',
+            status: 'request_received'
+          },
+          { 
+            id: 14, 
+            name: 'REQUEST SENT 1', 
+            image: require('./assets/Vision2.png'),
+            username: 'sent1',
+            status: 'request_sent'
+          }
+        ].filter(item => 
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.username.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      ]
     : [];
 
   // Render a saved item
@@ -460,6 +542,43 @@ const Favorites = ({ navigation }: FavoritesProps) => {
 
   // Render a friend item
   const renderFriendItem = ({ item, index }: { item: FriendItem, index: number }) => {
+    // If this item is pending removal and the confirmation dialog is shown,
+    // render the confirmation UI instead
+    if (pendingRemoval && pendingRemoval.id === item.id && showConfirmDialog) {
+      return (
+        <View style={styles.itemWrapper}>
+          <Animated.View
+            entering={FadeInDown.duration(300)}
+            style={styles.itemContainer}
+          >
+            <View style={styles.confirmationContainer}>
+            <Text style={styles.confirmationText}>
+              Подтвердить удаление из друзей?
+            </Text>
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmYesButton]} 
+                onPress={() => removeFriend(item.id)}
+              >
+                <Text style={styles.confirmButtonText}>Да</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmNoButton]}
+                onPress={() => {
+                  setShowConfirmDialog(false);
+                  setPendingRemoval(null);
+                }}
+              >
+                <Text style={styles.confirmButtonText}>Нет</Text>
+              </TouchableOpacity>
+            </View>
+            </View>
+          </Animated.View>
+        </View>
+      );
+    }
+    
+    // Regular friend item UI
     // Simple static rendering for Android
     if (!USE_ANIMATIONS) {
       return (
@@ -475,14 +594,18 @@ const Favorites = ({ navigation }: FavoritesProps) => {
             >
               <Image source={item.image} style={styles.itemImage} />
               <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
-              {item.username && (
-                <View style={styles.usernameContainer}>
-                  <Text style={styles.usernameText}>@{item.username}</Text>
-                </View>
-              )}
             </Pressable>
+            <TouchableOpacity 
+              style={styles.removeFriendButton}
+              onPress={() => {
+                setPendingRemoval(item);
+                setShowConfirmDialog(true);
+              }}
+            >
+              <Text style={styles.removeFriendButtonText}>×</Text>
+            </TouchableOpacity>
           </View>
         </View>
       );
@@ -509,6 +632,15 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                 <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
+            <TouchableOpacity 
+              style={styles.removeFriendButton}
+              onPress={() => {
+                setPendingRemoval(item);
+                setShowConfirmDialog(true);
+              }}
+            >
+              <Text style={styles.removeFriendButtonText}>×</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       </View>
@@ -605,34 +737,44 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     );
   };
 
-  // Render a search result item with platform-specific optimizations
-  const renderSearchItem = ({ item, index }: { item: FriendItem, index: number }) => {
-    
-    // Simple static rendering for Android
-    if (!USE_ANIMATIONS) {
+  // Custom render function for search results that includes user status
+  const renderSearchUser = ({ item, index }: { item: FriendItem, index: number }) => {
+    // If this item is pending removal and the confirmation dialog is shown,
+    // render the confirmation UI instead
+    if (pendingRemoval && pendingRemoval.id === item.id && showConfirmDialog) {
       return (
-        <View style={styles.searchItemWrapper}>
-          <View style={styles.searchItem}>
-            <Pressable 
-              style={styles.imageContainer}
-              onPress={() => {
-                // Search results are friend items, so no navigation
-                console.log('Search result item pressed - doing nothing');
-                // No navigation for search items
-                handleFriendSelect(item);
-              }}
-            >
-              <Image source={item.image} style={styles.itemImage} />
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
-              </View>
-            </Pressable>
-          </View>
+        <View style={styles.itemWrapper}>
+          <Animated.View
+            entering={FadeInDown.duration(300)}
+            style={styles.itemContainer}
+          >
+            <View style={styles.confirmationContainer}>
+            <Text style={styles.confirmationText}>
+              Подтвердить удаление из друзей?
+            </Text>
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmYesButton]} 
+                onPress={() => removeFriend(item.id)}
+              >
+                <Text style={styles.confirmButtonText}>Да</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.confirmNoButton]}
+                onPress={() => {
+                  setShowConfirmDialog(false);
+                  setPendingRemoval(null);
+                }}
+              >
+                <Text style={styles.confirmButtonText}>Нет</Text>
+              </TouchableOpacity>
+            </View>
+            </View>
+          </Animated.View>
         </View>
       );
     }
     
-    // More complex animations for iOS
     return (
       <View style={styles.searchItemWrapper}>
         <Animated.View
@@ -643,9 +785,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
             <Pressable 
               style={styles.imageContainer}
               onPress={() => {
-                // Search results are friend items, so no navigation
-                console.log('Search result item pressed - doing nothing');
-                // No navigation for search items
+                // No action for now
+                console.log('Search user pressed:', item.username);
                 handleFriendSelect(item);
               }}
             >
@@ -654,6 +795,49 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                 <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
+            
+            {/* Conditional button rendering based on status */}
+            {item.status === 'friend' && (
+              <TouchableOpacity 
+                style={styles.removeFriendButton}
+                onPress={() => {
+                  setPendingRemoval(item);
+                  setShowConfirmDialog(true);
+                }}
+              >
+                <Text style={styles.removeFriendButtonText}>×</Text>
+              </TouchableOpacity>
+            )}
+            
+            {item.status === 'request_received' && (
+              <View style={styles.miniRequestButtons}>
+                <TouchableOpacity 
+                  style={[styles.miniRequestButton, styles.miniAcceptButton]}
+                >
+                  <Text style={styles.miniRequestButtonText}>✓</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.miniRequestButton, styles.miniRejectButton]}
+                >
+                  <Text style={styles.miniRequestButtonText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {item.status === 'request_sent' && (
+              <View style={styles.pendingRequestBadge}>
+                <Text style={styles.pendingRequestText}>Запрос отправлен</Text>
+              </View>
+            )}
+            
+            {item.status === 'not_friend' && (
+              <TouchableOpacity 
+                style={styles.addFriendButton}
+                onPress={() => sendFriendRequest(item.id)}
+              >
+                <Text style={styles.addFriendButtonText}>+</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -686,6 +870,89 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       return customRecommendations[friendId];
     }
     return recommendedItems[friendId] || [];
+  };
+
+  // Initialize friend requests on component mount
+  useEffect(() => {
+    // Simulate loading friend requests from API
+    fetchFriendRequests();
+  }, []);
+  
+  // Mock API function to fetch friend requests
+  const fetchFriendRequests = () => {
+    console.log('Fetching friend requests from API...');
+    // Simulate API call delay
+    setTimeout(() => {
+      setFriendRequests(sampleFriendRequests);
+    }, 500);
+  };
+  
+  // Mock API function to accept a friend request
+  const acceptFriendRequest = (requestId: number) => {
+    console.log(`Accepting friend request ${requestId}...`);
+    // Simulate API call
+    setTimeout(() => {
+      // Find the request we're accepting
+      const request = friendRequests.find(req => req.requestId === requestId);
+      
+      if (request) {
+        // Remove from requests
+        setFriendRequests(prev => prev.filter(req => req.requestId !== requestId));
+        
+        // Add to friends
+        const newFriend: FriendItem = {
+          id: request.id,
+          name: request.name,
+          image: request.image,
+          username: request.username,
+          status: 'friend'
+        };
+        
+        // Add to friends list
+        setFriendItems([newFriend, ...friendItems]);
+      }
+    }, 500);
+  };
+  
+  // Mock API function to reject a friend request
+  const rejectFriendRequest = (requestId: number) => {
+    console.log(`Rejecting friend request ${requestId}...`);
+    // Simulate API call
+    setTimeout(() => {
+      // Remove from requests
+      setFriendRequests(prev => prev.filter(req => req.requestId !== requestId));
+    }, 500);
+  };
+  
+  // Mock API function to remove a friend
+  const removeFriend = (friendId: number) => {
+    console.log(`Removing friend ${friendId}...`);
+    // Simulate API call
+    setTimeout(() => {
+      // Remove from friends list
+      setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
+      // Close the confirmation dialog
+      setShowConfirmDialog(false);
+      setPendingRemoval(null);
+    }, 500);
+  };
+  
+  // Mock API function to send a friend request
+  const sendFriendRequest = (userId: number) => {
+    console.log(`Sending friend request to user ${userId}...`);
+    // Simulate API call
+    setTimeout(() => {
+      // Update the user's status to "request_sent" in search results
+      // This would normally come from the API response
+      // Here we're just simulating it by updating the UI
+      setSearchUserStatus(userId, 'request_sent');
+    }, 500);
+  };
+  
+  // Helper function to update user status in search results
+  const setSearchUserStatus = (userId: number, status: FriendItem['status']) => {
+    // In a real app, this would update the cache or trigger a refetch
+    console.log(`User ${userId} status updated to ${status}`);
   };
 
   // Don't render until interactions are complete
@@ -723,6 +990,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               renderFriendItem={renderFriendItem}
               savedItems={savedItems}
               friendItems={friendItems}
+              friendRequests={friendRequests}
+              onAcceptRequest={acceptFriendRequest}
+              onRejectRequest={rejectFriendRequest}
               handleNavigate={handleNavigate}
             />
           </Animated.View>
@@ -734,7 +1004,15 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               handleSearch={handleSearch}
               toggleSearch={toggleSearch}
               filteredFriends={filteredFriends as any[]} // Type cast for compatibility
-              renderSearchItem={renderSearchItem as any} // Type cast for compatibility
+              renderSearchUser={renderSearchUser as any} // Type cast for compatibility
+              onSendFriendRequest={sendFriendRequest}
+              onRemoveFriend={(friendId) => {
+                const friend = friendItems.find(f => f.id === friendId);
+                if (friend) {
+                  setPendingRemoval(friend);
+                  setShowConfirmDialog(true);
+                }
+              }}
             />
           </Animated.View>
 
@@ -769,6 +1047,9 @@ interface MainContentProps {
   renderFriendItem: ({ item, index }: { item: FriendItem, index: number }) => JSX.Element;
   savedItems: FavoriteItem[];
   friendItems: FriendItem[];
+  friendRequests: FriendRequestItem[];
+  onAcceptRequest: (requestId: number) => void;
+  onRejectRequest: (requestId: number) => void;
   handleNavigate: (screen: string, params?: any, fromFavorites?: boolean) => void;
 }
 
@@ -788,7 +1069,9 @@ interface SearchContentProps {
   handleSearch: (text: string) => void;
   toggleSearch: () => void;
   filteredFriends: any[]; // Update to accept any array type
-  renderSearchItem: ({ item, index }: { item: any, index: number }) => JSX.Element; // Update to accept any item type
+  renderSearchUser: ({ item, index }: { item: any, index: number }) => JSX.Element; // Update to accept any item type
+  onSendFriendRequest: (userId: number) => void;
+  onRemoveFriend: (friendId: number) => void;
 }
 
 // Extracted component for main content to reduce render complexity
@@ -802,6 +1085,9 @@ const MainContent = ({
   renderFriendItem,
   savedItems,
   friendItems,
+  friendRequests,
+  onAcceptRequest,
+  onRejectRequest,
   handleNavigate
 }: MainContentProps) => {
   return (
@@ -815,22 +1101,45 @@ const MainContent = ({
     //exiting={FadeOutDown.duration(50)}
     >
       <View style={{ flex: 1, borderRadius: 41 }}>
-        {activeView === 'friends' ? (
-          <FlatList<FriendItem>
-            style={styles.flatList}
-            data={friendItems}
-            renderItem={renderFriendItem}
-            keyExtractor={item => item.id.toString()}
-            showsVerticalScrollIndicator={false}
-            numColumns={2}
-            columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.listContent}
-            removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
-            initialNumToRender={4} // Only render what's visible initially
-            maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
-            windowSize={5} // Reduce window size for performance
-          />
-        ) : (
+        {activeView === 'friends' && (
+          <>
+            {/* Friend Requests Section */}
+            {friendRequests.length > 0 && (
+              <View style={styles.friendRequestsSection}>
+                <Text style={styles.sectionTitle}>Запросы в друзья</Text>
+                {friendRequests.map(request => (
+                  <FriendRequestItemComponent
+                    key={request.requestId}
+                    request={request}
+                    onAccept={onAcceptRequest}
+                    onReject={onRejectRequest}
+                  />
+                ))}
+              </View>
+            )}
+            
+            {/* Friends List */}
+            <FlatList<FriendItem>
+              style={styles.flatList}
+              data={friendItems}
+              renderItem={renderFriendItem}
+              keyExtractor={item => item.id.toString()}
+              showsVerticalScrollIndicator={false}
+              numColumns={2}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={[
+                styles.listContent,
+                friendRequests.length > 0 && { paddingTop: 10 } // Add padding if there are requests
+              ]}
+              removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
+              initialNumToRender={4} // Only render what's visible initially
+              maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
+              windowSize={5} // Reduce window size for performance
+            />
+          </>
+        )}
+        
+        {activeView === 'saved' && (
           <FlatList<FavoriteItem>
             style={styles.flatList}
             data={savedItems}
@@ -955,9 +1264,13 @@ const SearchContent = ({
   searchQuery, 
   handleSearch, 
   toggleSearch, 
-  filteredFriends, 
-  renderSearchItem 
-}: SearchContentProps) => (
+  filteredFriends,
+  renderSearchUser,
+  onSendFriendRequest,
+  onRemoveFriend
+}: SearchContentProps) => {
+  
+  return (
   <>
     {/* Search Input */}
     <Animated.View style={styles.searchContainer} entering={FadeInDown.duration(500)} exiting={FadeOutDown.duration(50)}>
@@ -990,7 +1303,7 @@ const SearchContent = ({
           <FlatList<any>
             style={styles.flatList}
             data={filteredFriends}
-            renderItem={renderSearchItem}
+            renderItem={renderSearchUser}
             keyExtractor={item => item.id.toString()}
             showsVerticalScrollIndicator={false}
             numColumns={2}
@@ -1021,7 +1334,7 @@ const SearchContent = ({
       </View>
     </Animated.View>
   </>
-);
+)};
 
 // Define interface for Friend Profile View props
 interface FriendProfileViewProps {
@@ -1244,6 +1557,44 @@ const FriendProfileView = React.memo(({
   );
 });
 
+// Friend Request Item Component
+interface FriendRequestItemProps {
+  request: FriendRequestItem;
+  onAccept: (requestId: number) => void;
+  onReject: (requestId: number) => void;
+}
+
+const FriendRequestItemComponent: React.FC<FriendRequestItemProps> = ({ request, onAccept, onReject }) => {
+  return (
+    <View style={styles.requestItemWrapper}>
+      <Animated.View entering={FadeInDown.duration(300)}>
+        <View style={styles.requestItemContainer}>
+          <View style={styles.requestImageContainer}>
+            <Image source={request.image} style={styles.itemImage} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemName} numberOfLines={1}>@{request.username}</Text>
+            </View>
+          </View>
+          <View style={styles.requestButtonsContainer}>
+            <TouchableOpacity 
+              style={[styles.requestButton, styles.acceptButton]}
+              onPress={() => onAccept(request.requestId)}
+            >
+              <Text style={styles.requestButtonText}>Принять</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.requestButton, styles.rejectButton]}
+              onPress={() => onReject(request.requestId)}
+            >
+              <Text style={styles.requestButtonText}>Отклонить</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1356,6 +1707,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   itemContainer: {
+    height: height * 0.18,
     width: '100%', // Calculate width for two columns with spacing
     marginBottom: 15,
     shadowColor: '#000',
@@ -1365,6 +1717,9 @@ const styles = StyleSheet.create({
     elevation: 6,
     backgroundColor: '#EDE7E2',
     borderRadius: 30,
+    position: 'relative', // For absolute positioned elements
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchItem: {
     width: '100%',
@@ -1376,6 +1731,7 @@ const styles = StyleSheet.create({
     elevation: 6,
     backgroundColor: '#EDE7E2',
     borderRadius: 30,
+    position: 'relative', // For absolute positioned elements
   },
   imageContainer: {
     overflow: 'hidden',
@@ -1400,6 +1756,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4A3120',
     textAlign: 'center',
+    bottom: -10,
   },
   priceContainer: {
     position: 'absolute',
@@ -1643,12 +2000,157 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     marginBottom: 18,
-    marginLeft: 27,
+    marginLeft: 15,
   },
   text: {
     fontFamily: 'IgraSans',
     fontSize: 38,
     color: '#fff',
+  },
+  requestItemWrapper: {
+    width: '100%',
+    padding: 10,
+  },
+  requestItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestImageContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  requestButtonsContainer: {
+    flexDirection: 'row',
+  },
+  requestButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#C8A688',
+    marginHorizontal: 5,
+  },
+  acceptButton: {
+    backgroundColor: '#A3FFD0',
+  },
+  rejectButton: {
+    backgroundColor: '#FC8CAF',
+  },
+  requestButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
+  },
+  confirmationContainer: {
+    height: '88%',
+    width: '88%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#E9A5AA',
+    borderRadius: 30,
+  },
+  confirmationText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: '#4A3120',
+    marginBottom: 20,
+    opacity: 0.8,
+    textAlign: 'center',
+  },
+  confirmationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  confirmButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#C8A688',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  confirmYesButton: {
+    backgroundColor: '#6DE699',
+  },
+  confirmNoButton: {
+    backgroundColor: '#FC8CAF',
+  },
+  confirmButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: '#4A3120',
+    opacity: 0.8,
+  },
+  removeFriendButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 5,
+    backgroundColor: '#FC8CAF',
+    borderRadius: 20,
+  },
+  removeFriendButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
+  },
+  friendRequestsSection: {
+    width: '100%',
+    padding: 15,
+  },
+  sectionTitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 24,
+    color: '#4A3120',
+    marginBottom: 10,
+  },
+  miniRequestButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniRequestButton: {
+    padding: 5,
+    borderRadius: 20,
+    backgroundColor: '#C8A688',
+    marginHorizontal: 5,
+  },
+  miniAcceptButton: {
+    backgroundColor: '#A3FFD0',
+  },
+  miniRejectButton: {
+    backgroundColor: '#FC8CAF',
+  },
+  miniRequestButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
+  },
+  pendingRequestBadge: {
+    padding: 5,
+    borderRadius: 20,
+    backgroundColor: '#C8A688',
+    marginLeft: 10,
+  },
+  pendingRequestText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
+  },
+  addFriendButton: {
+    padding: 5,
+    borderRadius: 20,
+    backgroundColor: '#C8A688',
+    marginLeft: 10,
+  },
+  addFriendButtonText: {
+    fontFamily: 'IgraSans',
+    fontSize: 15,
+    color: 'white',
   },
 });
 
