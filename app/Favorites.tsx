@@ -496,7 +496,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
         <View style={styles.itemWrapper}>
           <View style={styles.itemContainer}>
             <Pressable 
-              style={styles.imageContainer}
+              style={styles.itemImageContainer}
               onPress={() => {
                 console.log(`Saved item pressed: ${item.name}`);
                 // Navigate with saved item
@@ -525,7 +525,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
         >
           <View style={styles.itemContainer}>
             <Pressable 
-              style={styles.imageContainer}
+              style={styles.itemImageContainer}
               onPress={() => {
                 console.log(`Saved item pressed: ${item.name}`);
                 // Navigate with saved item
@@ -611,7 +611,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <View style={styles.imageContainer}>
                 <Image source={item.image} style={styles.userImage} />
               </View>
-              <View style={styles.itemInfo}>
+              <View style={styles.userInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
@@ -664,7 +664,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <View style={styles.imageContainer}>
                 <Image source={item.image} style={styles.userImage} />
               </View>
-              <View style={styles.itemInfo}>
+              <View style={styles.userInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
@@ -708,7 +708,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
         <View style={[styles.itemWrapper, {width: (width * 0.88 - 50) / 2}]}>
           <View style={styles.itemContainer}>
             <Pressable 
-              style={styles.imageContainer}
+              style={styles.itemImageContainer}
               onPress={() => {
                 console.log(`Recommended item pressed: ${item.name}`);
                 
@@ -753,7 +753,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
         >
           <View style={styles.itemContainer}>
             <Pressable 
-              style={styles.imageContainer}
+              style={styles.itemImageContainer}
               onPress={() => {
                 console.log(`Recommended item pressed: ${item.name}`);
                 
@@ -821,7 +821,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <View style={styles.imageContainer}>
                 <Image source={item.image} style={styles.userImage} />
               </View>
-              <View style={styles.itemInfo}>
+              <View style={styles.userInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
               </View>
             </Pressable>
@@ -1771,6 +1771,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: '100%'
   },
+  itemImageContainer: {
+    overflow: 'hidden',
+    aspectRatio: 1,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 30,
+    height: '100%',
+    width: '100%'
+  },
   imageContainer: {
     overflow: 'hidden',
     aspectRatio: 1,
@@ -1778,8 +1788,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 30,
-    width: width * 0.175,
-    height: width * 0.175,
+    width: width * 0.2,
+    height: width * 0.2,
     //backgroundColor: '#EDE7E2',
   },
   itemImage: {
@@ -1791,13 +1801,17 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     height: '100%',
     width:'100%',
-    borderRadius: width * 0.175,
+    borderRadius: width * 0.2,
   },
-  itemInfo: {
+  userInfo: {
     alignItems: 'center',
     padding: 6,
     position: 'absolute',
     bottom: 10
+  },
+  itemInfo: {
+    alignItems: 'center',
+    padding: 6,
   },
   itemName: {
     fontFamily: 'IgraSans',
