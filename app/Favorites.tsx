@@ -705,7 +705,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     // Simple static rendering for Android
     if (!USE_ANIMATIONS) {
       return (
-        <View style={[styles.itemWrapper, {width: (width * 0.88 - 50) / 2}]}>
+        <View style={[styles.itemWrapper, {width: (width * 0.88 - 45) / 2}]}>
           <View style={styles.itemContainer}>
             <Pressable 
               style={styles.itemImageContainer}
@@ -746,7 +746,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     
     // More complex animations for iOS
     return (
-      <View style={[styles.itemWrapper, {width: (width * 0.88 - 50) / 2}]}>
+      <View style={[styles.itemWrapper, {width: (width * 0.88 - 45) / 2}]}>
         <Animated.View
           entering={FadeInDown.duration(300).delay(100 + index * 50)}
           exiting={FadeOutDown.duration(50)}
@@ -1158,10 +1158,7 @@ const MainContent = ({
               showsVerticalScrollIndicator={false}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}
-              contentContainerStyle={[
-                styles.listContent,
-                friendRequests.length > 0 && { paddingTop: 10 } // Add padding if there are requests
-              ]}
+              contentContainerStyle={styles.listContent}
               removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
               initialNumToRender={4} // Only render what's visible initially
               maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
@@ -1738,7 +1735,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   itemContainer: {
-    height: height * 0.18,
+    height: (width*0.88-45)/2,
     width: '100%', // Calculate width for two columns with spacing
     marginBottom: 15,
     shadowColor: '#000',
@@ -1778,6 +1775,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 30,
+    padding: 5,
     height: '100%',
     width: '100%'
   },
@@ -1823,7 +1821,7 @@ const styles = StyleSheet.create({
   priceContainer: {
     position: 'absolute',
     right: -25,
-    top: '50%',
+    top: (width*0.88-45)/4,
     transform: [{ translateY: -20 }, { rotate: '90deg' }],
     borderRadius: 10,
     shadowColor: '#000',
@@ -1955,9 +1953,9 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   profileImageContainer: {
-    width: 112,
-    height: 112,
-    borderRadius: 41,
+    width: width*0.3,
+    height: width*0.3,
+    borderRadius: width*0.1,
     overflow: 'hidden',
     backgroundColor: '#EDE7E2',
     alignItems: 'center',
@@ -1971,8 +1969,8 @@ const styles = StyleSheet.create({
   profileImage: {
     width: '75%',
     height: '75%',
-    resizeMode: 'cover',
-    borderRadius: 60,
+    resizeMode: 'contain',
+    borderRadius: width*0.1125,
   },
   roundedBox: {
     width: '100%',
@@ -2008,7 +2006,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 41,
     padding: 15,
-    paddingTop: 17.5,
+    //paddingTop: 17.5,
   },
   regenerateButtonWrapper: {
     shadowColor: '#000',
