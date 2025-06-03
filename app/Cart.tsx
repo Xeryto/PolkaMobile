@@ -142,6 +142,8 @@ const Cart = ({ navigation }: CartProps) => {
   // Use state to ensure UI updates when cart changes
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   
   // Get screen dimensions for responsive layout
   const { width } = Dimensions.get('window');
@@ -334,8 +336,56 @@ const Cart = ({ navigation }: CartProps) => {
     }, 0).toLocaleString() + 'р';
   };
 
-    
+  const handleCheckout = async () => {
+    setIsSubmitting(true);
+    // Simulate API call to submit order
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setIsSubmitting(false);
+    setShowConfirmation(true);
+  };
 
+  const handleConfirmationClose = () => {
+    setShowConfirmation(false);
+    // Clear cart after successful order
+    if (global.cartStorage) {
+      // Remove all items from cart
+      cartItems.forEach(item => {
+        if (item.cartItemId) {
+          global.cartStorage.removeItem(item.cartItemId);
+        }
+      });
+      setCartItems([]);
+    }
+    // Navigate to main page
+    navigation.navigate('Home');
+  };
+
+  // Loading Screen Component
+  const LoadingScreen = () => (
+    <Animated.View 
+      entering={FadeIn.duration(300)}
+      style={styles.loadingContainer}
+    >
+      <Text style={styles.loadingText}>Оформление заказа...</Text>
+    </Animated.View>
+  );
+
+  // Confirmation Screen Component
+  const ConfirmationScreen = () => (
+    <Animated.View 
+      entering={FadeIn.duration(300)}
+      style={styles.confirmationContainer}
+    >
+      <Text style={styles.confirmationTitle}>Заказ оформлен!</Text>
+      <Text style={styles.confirmationText}>Спасибо за покупку</Text>
+      <TouchableOpacity 
+        style={styles.confirmationButton}
+        onPress={handleConfirmationClose}
+      >
+        <Text style={styles.confirmationButtonText}>Вернуться к покупкам</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 
   return (
     <View style={styles.container}>
@@ -350,9 +400,13 @@ const Cart = ({ navigation }: CartProps) => {
           locations={[0.1, 1]}
           style={styles.gradientBackground}
         />
-      <Animated.View style={styles.whiteBox} entering={FadeInDown.duration(500).delay(50)}>
+      <Animated.View style={styles.whiteBox} > 
         
-        {cartItems.length === 0 ? (
+        {isSubmitting ? (
+          <LoadingScreen />
+        ) : showConfirmation ? (
+          <ConfirmationScreen />
+        ) : cartItems.length === 0 ? (
           <Animated.View 
             entering={FadeInDown.duration(500).delay(100)}
             style={styles.emptyCartContainer}
@@ -371,7 +425,7 @@ const Cart = ({ navigation }: CartProps) => {
               {cartItems.map((item, index) => (
                 <Animated.View 
                   key={item.cartItemId || `${item.id}-${item.size}-${index}`}
-                  entering={FadeInDown.duration(500).delay(50 + index * 50)}
+                  entering={FadeInDown.duration(500).delay(100 + index * 50)}
                   style={styles.cartItem}
                 >
                   <Pressable 
@@ -438,7 +492,10 @@ const Cart = ({ navigation }: CartProps) => {
               </Animated.View>
               <Animated.View //style={styles.checkoutButton} 
               entering={FadeInDown.duration(500).delay(250)}>
-              <TouchableOpacity style={styles.checkoutButton}>
+              <TouchableOpacity 
+                style={styles.checkoutButton}
+                onPress={handleCheckout}
+              >
                 <Text style={styles.checkoutButtonText}>ОФОРМИТЬ ЗАКАЗ</Text>
               </TouchableOpacity>
               </Animated.View>
@@ -738,6 +795,52 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20.5,
     borderBottomRightRadius: 20.5,
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 41,
+  },
+  loadingText: {
+    fontFamily: 'IgraSans',
+    fontSize: 24,
+    color: '#4A3120',
+  },
+  confirmationContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2ECE7',
+    borderRadius: 41,
+    padding: 20,
+  },
+  confirmationTitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 38,
+    color: '#4A3120',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  confirmationText: {
+    fontFamily: 'REM',
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  confirmationButton: {
+    backgroundColor: '#CDA67A',
+    borderRadius: 25,
+    padding: 15,
+    alignItems: 'center',
+    width: '80%',
+  },
+  confirmationButtonText: {
+    color: 'white',
+    fontFamily: 'IgraSans',
+    fontSize: 18,
   },
 });
 

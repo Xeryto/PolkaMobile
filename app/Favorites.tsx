@@ -34,6 +34,7 @@ import CancelIcon from './assets/CancelThin.svg';
 import CancelThickIcon from './assets/Cancel.svg';
 import PlusIcon from './assets/PlusBlack.svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
   navigate: (screen: string, params?: any) => void;
@@ -564,13 +565,19 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <View style={styles.confirmationButtons}>
                 <TouchableOpacity 
                   style={[styles.confirmButton, styles.confirmYesButton]} 
-                  onPress={() => removeFriend(item.id)}
+                  onPress={() => {
+                    // Trigger success haptic feedback for confirmation
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    removeFriend(item.id);
+                  }}
                 >
                   <Text style={styles.confirmButtonText}>Да</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.confirmButton, styles.confirmNoButton]}
                   onPress={() => {
+                    // Trigger light haptic feedback for cancellation
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowConfirmDialog(false);
                     setPendingRemoval(null);
                   }}
@@ -804,6 +811,46 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       }
     };
 
+    // If this item is pending removal and the confirmation dialog is shown,
+    // render the confirmation UI instead
+    if (pendingRemoval && pendingRemoval.id === item.id && showConfirmDialog) {
+      return (
+        <View style={styles.searchItemWrapper}>
+          <Animated.View
+            entering={FadeInDown.duration(300)}
+            style={styles.itemContainer}
+          >
+            <View style={styles.confirmationContainer}>
+              <Text style={styles.confirmationText}>
+                Подтвердить удаление из друзей?
+              </Text>
+              <View style={styles.confirmationButtons}>
+                <TouchableOpacity 
+                  style={[styles.confirmButton, styles.confirmYesButton]} 
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    removeFriend(item.id);
+                  }}
+                >
+                  <Text style={styles.confirmButtonText}>Да</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.confirmButton, styles.confirmNoButton]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowConfirmDialog(false);
+                    setPendingRemoval(null);
+                  }}
+                >
+                  <Text style={styles.confirmButtonText}>Нет</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.searchItemWrapper}>
         <Animated.View
@@ -833,23 +880,23 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                   setShowConfirmDialog(true);
                 }}
               >
-                <CancelThickIcon  />
+                <CancelThickIcon />
               </TouchableOpacity>
             ) : item.status === 'request_received' ? (
               <View style={styles.stackedButtonsContainer}>
-              <TouchableOpacity 
-                style={[styles.stackedButton, styles.acceptButton]}
-                onPress={handleAcceptRequest}
-              >
-                <CheckIcon width={width * 0.1} height={width * 0.1} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.stackedButton, styles.rejectButton]}
-                onPress={handleRejectRequest}
-              >
-                <CancelIcon width={width * 0.12} height={width * 0.12} />
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity 
+                  style={[styles.stackedButton, styles.acceptButton]}
+                  onPress={handleAcceptRequest}
+                >
+                  <CheckIcon width={width * 0.1} height={width * 0.1} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.stackedButton, styles.rejectButton]}
+                  onPress={handleRejectRequest}
+                >
+                  <CancelIcon width={width * 0.12} height={width * 0.12} />
+                </TouchableOpacity>
+              </View>
             ) : item.status === 'request_sent' ? (
               <View style={styles.pendingRequestBadge}>
                 <Text style={styles.pendingRequestText}>Запрос отправлен</Text>
@@ -861,12 +908,13 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               >
                 <PlusIcon/>
               </TouchableOpacity>
-            ): null}
+            ) : null}
           </View>
         </Animated.View>
       </View>
     );
   };
+
   // Handle press animation for bottom box
   const handleBottomBoxPressIn = () => {
     // Quick small scale down for press effect
@@ -914,6 +962,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const acceptFriendRequest = async (requestId: number) => {
     console.log(`Accepting friend request ${requestId}...`);
     try {
+      // Trigger success haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -941,7 +992,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       }
     } catch (error) {
       console.error('Error accepting friend request:', error);
-      // Handle error (e.g., show error message)
+      // Trigger error haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
   
@@ -949,6 +1001,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const rejectFriendRequest = async (requestId: number) => {
     console.log(`Rejecting friend request ${requestId}...`);
     try {
+      // Trigger warning haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -964,13 +1019,17 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       }
     } catch (error) {
       console.error('Error rejecting friend request:', error);
-      // Handle error (e.g., show error message)
+      // Trigger error haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
   
   // Mock API function to remove a friend
   const removeFriend = (friendId: number) => {
     console.log(`Removing friend ${friendId}...`);
+    // Trigger warning haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    
     // Simulate API call
     setTimeout(() => {
       // Remove from friends list
@@ -984,6 +1043,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   // Mock API function to send a friend request
   const sendFriendRequest = (userId: number) => {
     console.log(`Sending friend request to user ${userId}...`);
+    // Trigger success haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
     // Simulate API call
     setTimeout(() => {
       // Update the user's status to "request_sent" in search results
@@ -1047,8 +1109,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               searchQuery={searchQuery}
               handleSearch={handleSearch}
               toggleSearch={toggleSearch}
-              filteredFriends={filteredFriends as any[]} // Type cast for compatibility
-              renderSearchUser={renderSearchUser as any} // Type cast for compatibility
+              filteredFriends={filteredFriends as any[]}
+              renderSearchUser={renderSearchUser as any}
               onSendFriendRequest={sendFriendRequest}
               onRemoveFriend={(friendId) => {
                 const friend = friendItems.find(f => f.id === friendId);
@@ -1057,6 +1119,11 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                   setShowConfirmDialog(true);
                 }
               }}
+              pendingRemoval={pendingRemoval}
+              showConfirmDialog={showConfirmDialog}
+              setShowConfirmDialog={setShowConfirmDialog}
+              setPendingRemoval={setPendingRemoval}
+              removeFriend={removeFriend}
             />
           </Animated.View>
 
@@ -1112,10 +1179,15 @@ interface SearchContentProps {
   searchQuery: string;
   handleSearch: (text: string) => void;
   toggleSearch: () => void;
-  filteredFriends: any[]; // Update to accept any array type
-  renderSearchUser: ListRenderItem<any>; // Update to accept any item type
+  filteredFriends: any[];
+  renderSearchUser: ListRenderItem<any>;
   onSendFriendRequest: (userId: number) => void;
   onRemoveFriend: (friendId: number) => void;
+  pendingRemoval: FriendItem | null;
+  showConfirmDialog: boolean;
+  setShowConfirmDialog: (show: boolean) => void;
+  setPendingRemoval: (friend: FriendItem | null) => void;
+  removeFriend: (friendId: number) => void;
 }
 
 // Extracted component for main content to reduce render complexity
@@ -1295,7 +1367,12 @@ const SearchContent = ({
   filteredFriends,
   renderSearchUser,
   onSendFriendRequest,
-  onRemoveFriend
+  onRemoveFriend,
+  pendingRemoval,
+  showConfirmDialog,
+  setShowConfirmDialog,
+  setPendingRemoval,
+  removeFriend
 }: SearchContentProps) => {
   
   return (
@@ -1337,7 +1414,7 @@ const SearchContent = ({
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.listContent}
-            removeClippedSubviews={Platform.OS === 'android'} // Android optimization
+            removeClippedSubviews={Platform.OS === 'android'}
             initialNumToRender={4}
             maxToRenderPerBatch={4}
             windowSize={5}
@@ -2236,6 +2313,17 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 18,
     color: 'white',
+  },
+  confirmationOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
 });
 

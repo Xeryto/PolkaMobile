@@ -222,9 +222,10 @@ const HeartButton: React.FC<HeartButtonProps> = ({ isLiked, onToggleLike }) => {
         bounciness: 12,
       })
     ]).start(() => {
-      // Clear animation flag when complete
-      setIsAnimating(false);
-      console.log('HeartButton - Animation completed');
+      requestAnimationFrame(() => {
+        setIsAnimating(false);
+        console.log('HeartButton - Animation completed');
+      });
     });
   };
   
@@ -284,36 +285,31 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const cartButtonScale = useRef(new RNAnimated.Value(1)).current;
   const seenButtonScale = useRef(new RNAnimated.Value(1)).current;
   
-  // Initialize with default items but only once
+  // Initialize cards state with a callback to avoid unnecessary updates
   const [cards, setCards] = useState<CardItem[]>(() => {
-    // If we already have cards in our persistent storage, use those
     if (persistentCardStorage.initialized) {
-      console.log('MainPage - Using persistent cards:', persistentCardStorage.cards);
       return persistentCardStorage.cards;
     }
     
-    // Otherwise initialize with default items
     const defaultCards = [
       { 
         id: 1, 
         name: 'DEFAULT ITEM 1', 
         price: '25 000 р', 
         image: require('./assets/Vision.png'),
-        isLiked: false // Default items start unliked
+        isLiked: false
       },
       { 
         id: 2, 
         name: 'DEFAULT ITEM 2', 
         price: '30 000 р', 
         image: require('./assets/Vision2.png'),
-        isLiked: false // Default items start unliked
+        isLiked: false
       }
     ];
     
-    // Save to persistent storage
     persistentCardStorage.cards = defaultCards;
     persistentCardStorage.initialized = true;
-    console.log('MainPage - Initialized persistent cards storage');
     
     return defaultCards;
   });
@@ -422,7 +418,9 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     ]).start((finished) => {
       // If the animation was interrupted, ensure we end with full opacity
       if (!finished.finished) {
-        fadeAnim.setValue(1);
+        requestAnimationFrame(() => {
+          fadeAnim.setValue(1);
+        });
       }
     });
   }, [fadeAnim]);
@@ -614,8 +612,9 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         tension: 40,
         useNativeDriver: false
       }).start(() => {
-        // Reset animation state
-        setIsAnimating(false);
+        requestAnimationFrame(() => {
+          setIsAnimating(false);
+        });
       });
     });
 
@@ -690,7 +689,9 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         useNativeDriver: false // Must be false for percentage changes
       })
     ]).start(() => {
-      setShowSizeSelection(true);
+      requestAnimationFrame(() => {
+        setShowSizeSelection(true);
+      });
     });
   };
 
@@ -717,7 +718,9 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
         useNativeDriver: false
       })
     ]).start(() => {
-      setShowSizeSelection(false);
+      requestAnimationFrame(() => {
+        setShowSizeSelection(false);
+      });
     });
   };
 
@@ -770,7 +773,6 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
 
   // Add a safeguard effect to ensure currentCardIndex stays valid
   useEffect(() => {
-    // If currentCardIndex is out of bounds and there are cards available, reset it
     if (currentCardIndex >= cards.length && cards.length > 0) {
       console.log('MainPage - Fixing out of bounds currentCardIndex');
       setCurrentCardIndex(0);
@@ -964,22 +966,79 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }
   }, [isRefreshing]);
   
-  // Listen for refresh signal from navigation params
+  // Move route params handling to a separate effect
+  useEffect(() => {
+    if (route?.params?.addCardItem) {
+      const newCard = route.params.addCardItem;
+      setCards(prevCards => {
+        const updatedCards = [newCard, ...prevCards];
+        persistentCardStorage.cards = updatedCards;
+        return updatedCards;
+      });
+      navigation.setParams?.({ addCardItem: undefined });
+    }
+  }, [route?.params?.addCardItem, navigation]);
+
+  // Handle refresh request in a separate effect
   useEffect(() => {
     if (route?.params?.refreshCards && route?.params?.refreshTimestamp) {
       refreshCards();
-      
-      // Clear the refresh params after processing
       setTimeout(() => {
-        if (navigation.setParams) {
-          navigation.setParams({ 
-            refreshCards: undefined,
-            refreshTimestamp: undefined
-          });
-        }
+        navigation.setParams?.({ 
+          refreshCards: undefined,
+          refreshTimestamp: undefined
+        });
       }, 100);
     }
   }, [route?.params?.refreshTimestamp, refreshCards, navigation]);
+
+  // Update persistent storage in a separate effect
+  useEffect(() => {
+    persistentCardStorage.cards = cards;
+  }, [cards]);
+
+  // Add a safeguard effect to ensure currentCardIndex stays valid
+  useEffect(() => {
+    if (currentCardIndex >= cards.length && cards.length > 0) {
+      setCurrentCardIndex(0);
+    }
+  }, [cards, currentCardIndex]);
+
+  // Add a safeguard effect to ensure currentCardIndex stays valid
+  useEffect(() => {
+    let fetchTimer: NodeJS.Timeout;
+    
+    if (cards.length < MIN_CARDS_THRESHOLD && !isRefreshing) {
+      fetchTimer = setTimeout(() => {
+        fetchMoreCards(MIN_CARDS_THRESHOLD - cards.length + 1).then(apiCards => {
+          if (apiCards.length > 0) {
+            setCards(prevCards => {
+              if (prevCards.length >= MIN_CARDS_THRESHOLD) {
+                return prevCards;
+              }
+              
+              const updatedCards = [...prevCards, ...apiCards];
+              persistentCardStorage.cards = updatedCards;
+              setIsAnimating(false);
+              pan.setValue({ x: 0, y: 0 });
+              
+              return updatedCards;
+            });
+          }
+        }).catch(error => {
+          console.error('Error fetching cards:', error);
+          setIsAnimating(false);
+          pan.setValue({ x: 0, y: 0 });
+        });
+      }, 300);
+    }
+    
+    return () => {
+      if (fetchTimer) {
+        clearTimeout(fetchTimer);
+      }
+    };
+  }, [cards.length, isRefreshing]);
 
   // Fade in the entire page when component mounts
   useEffect(() => {
@@ -993,125 +1052,8 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }).start();
   }, []);
 
-  // Update persistent storage whenever cards change
-  useEffect(() => {
-    persistentCardStorage.cards = cards;
-    console.log('MainPage - Updated persistent storage with cards:', cards);
-  }, [cards]);
-
-  // Check if we received a card item to add
-  useEffect(() => {
-    console.log('MainPage - route params changed:', route?.params);
-    
-    if (route?.params?.addCardItem) {
-      // Get the received item
-      const newItem = route.params.addCardItem;
-      console.log('MainPage - Received item from Favorites:', newItem);
-      
-      // Check if isLiked property is explicitly defined
-      // If it's not defined, we'll use false as the default now instead of true
-      const isItemLiked = newItem.isLiked !== undefined ? newItem.isLiked : false;
-      
-      // Generate a unique timestamp to ensure we can add the same item multiple times
-      // but still track and remove duplicates if we need to
-      const uniqueItem = {
-        ...newItem,
-        // Make sure isLiked is set properly
-        isLiked: isItemLiked,
-        // Add a timestamp to the ID to make it unique if needed
-        _addedAt: Date.now()
-      };
-      
-      // ALWAYS add the item to the beginning of the array (top of deck)
-      // If it exists elsewhere in the array, remove that instance to avoid duplicates
-      setCards(prevCards => {
-        // Check if the item already exists somewhere in the array
-        const existingIndex = prevCards.findIndex(card => card.id === newItem.id);
-        console.log('MainPage - Item exists at index:', existingIndex);
-        
-        let newCards;
-        if (existingIndex >= 0) {
-          // Item already exists, remove it from its current position
-          console.log('MainPage - Removing existing item and adding to top of deck');
-          // Filter out the existing item and add the new one at the beginning
-          newCards = [
-            uniqueItem, 
-            ...prevCards.filter(card => card.id !== newItem.id)
-          ];
-        } else {
-          // Item doesn't exist yet, just add it to the beginning
-          console.log('MainPage - Adding new item to top of deck');
-          newCards = [uniqueItem, ...prevCards];
-        }
-        
-        console.log('MainPage - New cards array:', newCards);
-        // Update the persistent storage
-        persistentCardStorage.cards = newCards;
-        return newCards;
-      });
-      
-      // Always set the current index to 0 to show the newly added/moved item
-      setTimeout(() => {
-        setCurrentCardIndex(0);
-        // Provide feedback
-        if (Platform.OS === 'ios') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      }, 0);
-      
-      // Important: Clear the param after processing to avoid duplicate adds
-      setTimeout(() => {
-        console.log('MainPage - Clearing addCardItem parameter');
-        if (navigation.setParams) {
-          navigation.setParams({ addCardItem: undefined });
-        }
-      }, 100);
-    }
-  }, [route?.params]); // Only dependent on route params now
-
   // Add a constant for the minimum number of cards to maintain
   const MIN_CARDS_THRESHOLD = 3;
-
-  // Enhance the useEffect hook that checks for empty cards to be more proactive
-  useEffect(() => {
-    // Load cards if the persistent storage is getting low
-    if (cards.length < MIN_CARDS_THRESHOLD && !isRefreshing) {
-      console.log(`MainPage - Cards running low (${cards.length}), preemptively fetching more`);
-      
-      // Set a small delay to prevent multiple fetch requests
-      const fetchTimer = setTimeout(() => {
-        fetchMoreCards(MIN_CARDS_THRESHOLD - cards.length + 1).then(apiCards => {
-          if (apiCards.length > 0) {
-            setCards(prevCards => {
-              // Avoid duplicate fetching by checking if cards were already added
-              if (prevCards.length >= MIN_CARDS_THRESHOLD) {
-                return prevCards;
-              }
-              
-              const updatedCards = [...prevCards, ...apiCards];
-              console.log('MainPage - Added new cards, total count:', updatedCards.length);
-              
-              // Update persistent storage
-              persistentCardStorage.cards = updatedCards;
-              
-              // Reset animation state just in case
-              setIsAnimating(false);
-              pan.setValue({ x: 0, y: 0 });
-              
-              return updatedCards;
-            });
-          }
-        }).catch(error => {
-          console.error('Error fetching cards:', error);
-          // Reset animation state on error
-          setIsAnimating(false);
-          pan.setValue({ x: 0, y: 0 });
-        });
-      }, 300);
-      
-      return () => clearTimeout(fetchTimer);
-    }
-  }, [cards.length, isRefreshing]);
 
   return (
     <RNAnimated.View style={{ opacity: pageOpacity, width: '100%', height: '100%' }}>
