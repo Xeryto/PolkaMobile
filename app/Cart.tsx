@@ -550,18 +550,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 6,
   },
-  title: {
-    fontFamily: 'IgraSans',
-    fontSize: 38,
-    color: '#4A3120',
-    marginBottom: 20,
-    marginLeft: 10,
-  },
   itemsContainer: {
     height: '70%',
     borderRadius: 41,
-    padding: 16,
-    paddingTop: 25,
+    padding: height*0.02,
+    //paddingTop: 25,
   },
   cartItem: {
     backgroundColor: 'rgba(216, 182, 143, 0.6)',

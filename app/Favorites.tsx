@@ -897,10 +897,6 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                   <CancelIcon width={width * 0.12} height={width * 0.12} />
                 </TouchableOpacity>
               </View>
-            ) : item.status === 'request_sent' ? (
-              <View style={styles.pendingRequestBadge}>
-                <Text style={styles.pendingRequestText}>Запрос отправлен</Text>
-              </View>
             ) : item.status === 'not_friend' ? (
               <TouchableOpacity 
                 style={styles.addFriendButton}
