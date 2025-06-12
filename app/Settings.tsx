@@ -16,7 +16,16 @@ import {
   Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import Animated, { 
+  FadeIn, 
+  FadeInDown, 
+  FadeOutDown,
+  useAnimatedStyle,
+  withTiming,
+  useSharedValue,
+  withSequence,
+  FadeOut
+} from 'react-native-reanimated';
 import BackIcon from './assets/Back.svg';
 import * as Haptics from 'expo-haptics';
 import Cancel from './assets/Cancel.svg';
@@ -56,6 +65,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const sizeIndicatorOpacity = useRef(new RNAnimated.Value(1)).current;
   const searchResultsTranslateY = useRef(new RNAnimated.Value(0)).current;
   const searchResultsOpacity = useRef(new RNAnimated.Value(0)).current;
+  const selectedBrandsOpacity = useSharedValue(0);
 
   const stats: StatItem[] = [
     { label: 'Куплено', value: '56' },
@@ -64,6 +74,19 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
 
   const sizeOptions = ['XS', 'S', 'M', 'L', 'XL'];
 
+  // Filtered brands based on search query
+  const filteredBrands = searchQuery.length > 0
+    ? popularBrands.filter(brand => 
+        brand.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : popularBrands;
+
+  // Animated style for search results
+  const searchResultsAnimatedStyle = {
+    transform: [{ translateY: searchResultsTranslateY }],
+    opacity: searchResultsOpacity
+  };
+
   useEffect(() => {
     setPopularBrands([
       "Армани", "Бурберри", "Гуччи", "Хьюго Босс", 
@@ -71,6 +94,22 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       "Балман", "Фенди", "Том Форд", "Шанель"
     ]);
   }, []);
+
+  useEffect(() => {
+    if (selectedBrands.length > 0) {
+      selectedBrandsOpacity.value = withTiming(1, { duration: 300 });
+    } else {
+      selectedBrandsOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [selectedBrands]);
+
+  const selectedBrandsAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: selectedBrandsOpacity.value,
+      height: selectedBrandsOpacity.value === 0 ? 0 : 0.1 * height,
+      marginTop: selectedBrandsOpacity.value === 0 ? 0 : height * 0.05,
+    };
+  });
 
   const handleSizePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -207,39 +246,67 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     </View>
   );
 
+  const renderBrandBubble = (brand: string) => (
+    <Animated.View key={`bubble-${brand}`} style={{alignItems: 'center', marginRight: 11}}>
+      <Text style={styles.brandBubbleText}>{brand}</Text>
+    </Animated.View>
+  );
+
+  const renderBrandItem = ({ item }: { item: string }) => (
+    <Pressable
+      style={({pressed}) => [
+        styles.brandItem,
+        pressed && styles.pressedItem
+      ]}
+      onPress={() => handleBrandSelect(item)}
+      android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
+    >
+      <View style={styles.brandItemContent}>
+        <Text style={
+          styles.brandText}>
+          {item}
+        </Text>
+        
+        {selectedBrands.includes(item) && (
+          <View style={styles.tickContainer}>
+            <Tick width={20} height={20} />
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
+
   const renderBrandSearch = () => (
-    <Animated.View entering={FadeInDown.duration(500)} style={styles.contentContainer}>
+    <View style={styles.searchAndResultsContainer}>
       <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
         <TouchableOpacity onPress={() => setShowBrandSearch(false)}>
           <BackIcon width={33} height={33} />
         </TouchableOpacity>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.duration(500).delay(250)}>
-        <Text style={styles.sectionTitle}>Любимые бренды</Text>
-      </Animated.View>
-
-      {selectedBrands.length > 0 && (
-        <Animated.View 
-          entering={FadeInDown.duration(500)}
-          exiting={FadeOutDown.duration(500)}
-          style={styles.selectedBrandsContainer}
+      {/* Selected brands bubbles */}
+      <Animated.View 
+        entering={FadeInDown.duration(500).delay(250)}
+        style={[
+          styles.selectedBubblesContainer,
+          selectedBrandsAnimatedStyle
+        ]}
+      >
+        <ScrollView 
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.selectedBubblesContent}
         >
-          <ScrollView 
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            {selectedBrands.map((brand) => (
-              <View key={brand} style={styles.selectedBrandItem}>
-                <Text style={styles.selectedBrandText}>{brand}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </Animated.View>
-      )}
-
-      <View style={styles.searchAndResultsContainer}>
-        <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.searchContainer}>
+          {selectedBrands.map(renderBrandBubble)}
+        </ScrollView>
+      </Animated.View>
+      
+      {/* Search Container */}
+      <Animated.View
+        entering={FadeInDown.duration(500).delay(300)} 
+        style={styles.searchResultsContainer}
+      >
+        <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
             placeholder="Поиск"
@@ -248,48 +315,17 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
             onChangeText={handleSearch}
             onFocus={handleSearchFocus}
           />
-          {isSearchActive && (
-            <TouchableOpacity
-              onPress={handleCancelSearch}
-              style={styles.cancelButton}
-            >
-              <Text style={styles.cancelButtonText}>Отмена</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-
-        <RNAnimated.View 
-          style={[
-            styles.searchResultsContainer,
-            {
-              transform: [{ translateY: searchResultsTranslateY }],
-              opacity: searchResultsOpacity
-            }
-          ]}
-        >
-          <FlatList
-            data={popularBrands.filter(brand => 
-              brand.toLowerCase().includes(searchQuery.toLowerCase())
-            )}
-            renderItem={({ item }) => (
-              <Pressable
-                style={({pressed}) => [
-                  styles.brandItem,
-                  pressed && styles.pressedItem
-                ]}
-                onPress={() => handleBrandSelect(item)}
-              >
-                <Text style={styles.brandText}>{item}</Text>
-              </Pressable>
-            )}
-            keyExtractor={(item) => item}
-            numColumns={1}
-            contentContainerStyle={styles.brandsList}
-            showsVerticalScrollIndicator={false}
-          />
-        </RNAnimated.View>
-      </View>
-    </Animated.View>
+        </View>
+        <FlatList
+          data={filteredBrands}
+          renderItem={renderBrandItem}
+          keyExtractor={(item) => item}
+          numColumns={1}
+          contentContainerStyle={styles.brandsList}
+          showsVerticalScrollIndicator={false}
+        />
+      </Animated.View>
+    </View>
   );
 
   const renderMainButton = (title: string, section: 'wall' | 'orders' | 'payment' | 'support', delay: number) => (
@@ -303,8 +339,8 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       >
         <Text style={styles.mainButtonText}>{title}</Text>
       </Pressable>
-    </Animated.View>
-  );
+          </Animated.View>
+        );
 
   const renderMainButtons = () => (
     <Animated.View entering={FadeInDown.duration(500)} style={{width: '100%', alignItems: 'center', justifyContent: 'space-between', height: '100%'}}>
@@ -319,7 +355,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
           style={styles.profileImage}
         />
       </Animated.View>
-      <Animated.View 
+          <Animated.View 
       //entering={FadeInDown.duration(500)}
       style={styles.mainButtonsOverlay}
     >
@@ -706,7 +742,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#000',
     marginBottom: 5,
-    paddingHorizontal: 20
+    paddingHorizontal: 18
   },
   sizeSection: {
     width: '100%',
@@ -866,10 +902,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
   },
-  selectedBrandsContainer: {
+  selectedBubblesContainer: {
     width: '100%',
-    maxHeight: 50,
-    marginBottom: 20,
+    backgroundColor: '#E2CCB2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    borderRadius: 41,
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  selectedBubblesContent: {
+    marginLeft: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   selectedBrandItem: {
     backgroundColor: '#DCC1A5',
@@ -896,17 +943,20 @@ const styles = StyleSheet.create({
   },
   searchAndResultsContainer: {
     width: '100%',
+    height: '100%',
     alignItems: 'center',
-    marginTop: 20,
+    justifyContent: 'space-between',
+    position: 'relative',
   },
   searchContainer: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0D6CC',
+    backgroundColor: '#DCBF9D',
     borderRadius: 41,
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    height: 0.1*height,
+    zIndex: 2,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -920,11 +970,9 @@ const styles = StyleSheet.create({
     }),
   },
   searchInput: {
-    flex: 1,
     fontFamily: 'IgraSans',
     fontSize: 20,
     color: '#000',
-    height: 40,
   },
   cancelButton: {
     paddingHorizontal: 20,
@@ -939,16 +987,16 @@ const styles = StyleSheet.create({
   },
   searchResultsContainer: {
     width: '100%',
-    height: height*0.35,
-    backgroundColor: '#E0D6CC',
+    height: height*0.47,
+    backgroundColor: '#E2CCB2',
     borderRadius: 41,
-    overflow: 'hidden',
-    marginTop: 10,
+    position: 'relative',
+    zIndex: 1,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
@@ -957,20 +1005,32 @@ const styles = StyleSheet.create({
     }),
   },
   brandsList: {
-    paddingVertical: 8,
+    marginTop: 5,
   },
   brandItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    padding: 20,
+  },  
+  brandItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   brandText: {
     fontFamily: 'IgraSans',
     fontSize: 20,
     color: '#000',
   },
+  tickContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pressedItem: {
     opacity: 0.8,
+  },
+  brandBubbleText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
   },
 });
 
