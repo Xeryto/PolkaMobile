@@ -30,14 +30,16 @@ import BackIcon from './assets/Back.svg';
 import * as Haptics from 'expo-haptics';
 import Cancel from './assets/Cancel.svg';
 import Tick from './assets/Tick';
+import { Canvas, RoundedRect, Shadow } from '@shopify/react-native-skia';
 
 const { width, height } = Dimensions.get('window');
 
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: any) => void;
   goBack: () => void;
 }
+
 
 interface SettingsProps {
   navigation: SimpleNavigation;
@@ -49,6 +51,30 @@ interface StatItem {
   value: string;
 }
 
+const CartItemImage = ({ item }: { item: CartItem }) => {
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+
+  const onImageLoad = (event: any) => {
+    const { width, height } = event.nativeEvent.source;
+    setImageDimensions({ width, height });
+  };
+
+  const aspectRatio = imageDimensions.width && imageDimensions.height
+    ? imageDimensions.width / imageDimensions.height
+    : 1; // Default to 1 if image dimensions are not loaded yet
+
+  return (
+    <View style={styles.container}>
+      <Image
+        source={item.image}
+        style={[styles.itemImage, { aspectRatio }]} // Set aspect ratio dynamically
+        resizeMode="contain" // Ensure the image fits within the container while maintaining aspect ratio
+        onLoad={onImageLoad} // Get image dimensions when the image loads
+      />
+    </View>
+  );
+};
+
 const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [selectedSize, setSelectedSize] = useState('M');
   const [activeSection, setActiveSection] = useState<'wall' | 'orders' | 'payment' | 'support' | null>(null);
@@ -58,6 +84,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [popularBrands, setPopularBrands] = useState<string[]>([]);
   const [showBrandSearch, setShowBrandSearch] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<{ id: string; number: string; items: any[]; total: string; } | null>(null);
   
   // Animation values
   const sizeContainerWidth = useRef(new RNAnimated.Value(height*0.1)).current;
@@ -329,7 +356,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   );
 
   const renderMainButton = (title: string, section: 'wall' | 'orders' | 'payment' | 'support', delay: number) => (
-    <Animated.View
+          <Animated.View 
       entering={FadeInDown.duration(500).delay(150+delay)}
       style={styles.mainButtonContainer}
     >
@@ -422,29 +449,187 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     </View>
   );
 
-  const renderOrdersContent = () => (
+  // Handle item press to send it to MainPage
+  const handleItemPress = (item: CartItem) => {
+    // Create a card item from the cart item
+    const cardItem = {
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+      isLiked: item.isLiked // Default to not liked when coming from cart
+    };
+    
+    // Navigate to home with the item
+    console.log('Cart - Sending item to MainPage:', cardItem);
+    navigation.navigate('Home', { addCardItem: cardItem });
+  };
+
+  const renderOrderDetails = () => (
     <View style={styles.contentContainer}>
       <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
-        <TouchableOpacity onPress={() => setActiveSection(null)}>
+        <TouchableOpacity onPress={() => setSelectedOrder(null)}>
           <BackIcon width={33} height={33} />
         </TouchableOpacity>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.duration(500).delay(250)}>
-        <Text style={styles.sectionTitle}>Заказы</Text>
-      </Animated.View>
+      <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.orderDetailsContainer}>
+        <ScrollView style={styles.orderItemsList} showsVerticalScrollIndicator={false}>
+          {selectedOrder?.items.map((item, index) => (
+            <Animated.View 
+            key={item.cartItemId || `${item.id}-${item.size}-${index}`}
+            entering={FadeInDown.duration(500).delay(100 + index * 50)}
+            style={styles.cartItem}
+          >
+            <Pressable 
+              style={styles.itemPressable}
+              onPress={() => handleItemPress(item)}
+            >
+              <View style={styles.itemContent}>
+                  <View style={styles.imageContainer}>
+                    <CartItemImage item={item} />
+                  </View>
+                <View style={styles.itemDetails}>
+                  <Text style={styles.itemName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+                  <Text style={styles.itemPrice}>{item.price}</Text>
+                  <Text style={styles.itemSize}>{item.size}</Text>
+                  
+                  {/* Always display delivery info for each item */}
+                  <View>
+                    <Text style={[styles.deliveryText,{textDecorationLine: 'underline'}]}>
+                      tracking number
+                    </Text>
+                    <Text style={styles.deliveryText}>
+                      доставка
+                    </Text>
+                  </View>
 
-      <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.ordersContainer}>
-        <Text style={styles.emptyStateText}>У вас пока нет заказов</Text>
-        <Pressable 
-          style={styles.startShoppingButton}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Text style={styles.startShoppingText}>Начать покупки</Text>
-        </Pressable>
+                  <View style={styles.deliveryInfoChangeable}>
+                    <Text style={styles.deliveryText}>
+                      {item.delivery.cost}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.rightContainer}>
+                <View style={styles.circle}>
+                <Canvas style={{ width: 41, height: 41, backgroundColor: 'transparent' }}>
+                  <RoundedRect x={0} y={0} width={41} height={41} r={20.5} color="white">
+                    <Shadow dx={0} dy={4} blur={4} color="rgba(0,0,0,0.5)" inner />
+                  </RoundedRect>
+                </Canvas>
+                </View>
+              </View>
+            </Pressable>
+          </Animated.View>
+          ))}
+        </ScrollView>
+        <Animated.View entering={FadeInDown.duration(500).delay(350)} style={styles.orderTotalContainer}>
+          <Text style={styles.orderTotalText}>ИТОГО {selectedOrder?.total}</Text>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(500).delay(400)} style={styles.orderStatusContainer}>
+          <Text style={[styles.orderStatusText, {marginLeft: 20}]}>Статус</Text>
+          <Animated.View entering={FadeInDown.duration(500).delay(450)} style={styles.orderStatus}>
+          <Text style={styles.orderStatusText}>Оплачен</Text>
+          </Animated.View>
+        </Animated.View>
       </Animated.View>
     </View>
   );
+
+  const renderOrdersContent = () => {
+    const orders = [
+      { 
+        id: '1', 
+        number: '12345', 
+        items: [
+          { id: '1', name: 'Nike', price: '15 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
+          { id: '2', name: 'Levi\'s', price: '20 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
+          { id: '3', name: 'Adidas', price: '10 000 р', size: '42', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
+        ],
+        total: '45 000 р', 
+        date: '12.03.2024' 
+      },
+      { 
+        id: '2', 
+        number: '12346', 
+        items: [
+          { id: '4', name: 'Куртка The North Face', price: '15 000 р', size: 'XL', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
+        ],
+        total: '15 000 р', 
+        date: '10.03.2024' 
+      },
+      { 
+        id: '3', 
+        number: '12347', 
+        items: [
+          { id: '5', name: 'Рубашка Tommy Hilfiger', price: '20 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
+          { id: '6', name: 'Брюки Calvin Klein', price: '10 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
+        ],
+        total: '30 000 р', 
+        date: '08.03.2024' 
+      },
+      { 
+        id: '4', 
+        number: '12367', 
+        items: [
+          { id: '5', name: 'Рубашка Tommy Hilfiger', price: '20 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
+          { id: '6', name: 'Брюки Calvin Klein', price: '10 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
+        ],
+        total: '30 000 р', 
+        date: '08.03.2024' 
+      },
+    ];
+
+    if (selectedOrder) {
+      return renderOrderDetails();
+    }
+
+    return (
+      <View style={styles.contentContainer}>
+        <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
+          <TouchableOpacity onPress={() => setActiveSection(null)}>
+            <BackIcon width={33} height={33} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.ordersContainer}>
+          {orders.length === 0 ? (
+            <>
+              <Text style={styles.emptyStateText}>У вас пока нет заказов</Text>
+              <Pressable 
+                style={styles.startShoppingButton}
+                onPress={() => navigation.navigate('Home')}
+              >
+                <Text style={styles.startShoppingText}>Начать покупки</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ScrollView style={styles.ordersList} showsVerticalScrollIndicator={false}>
+              {orders.map((order, index) => (
+                <Animated.View 
+                  key={order.id}
+                  entering={FadeInDown.duration(500).delay(300 + index * 50)}
+                  style={styles.orderItem}
+                >
+                  <TouchableOpacity 
+                    style={styles.orderBubble}
+                    onPress={() => setSelectedOrder(order)}
+                  >
+                    <Text style={styles.orderNumber}>Заказ №{order.number}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.orderSummary}>
+                    Итого: {order.total}
+                  </Text>
+                </Animated.View>
+              ))}
+            </ScrollView>
+          )}
+        </Animated.View>
+      </View>
+    );
+  };
 
   const renderPaymentContent = () => (
     <View style={styles.contentContainer}>
@@ -511,6 +696,10 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   };
 
   const getBottomText = () => {
+    if (selectedOrder) {
+      return `ЗАКАЗ №${selectedOrder.number}`;
+    }
+    
     switch (activeSection) {
       case 'wall':
         return 'СТЕНА';
@@ -836,25 +1025,41 @@ const styles = StyleSheet.create({
   ordersContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
+    width: '100%'
+  },
+  ordersList: {
+    marginTop: height*0.05,
+    paddingHorizontal: 20,
+    borderRadius: 41,
+    width: 0.88*width,
+    marginBottom: -20
+  },
+  orderItem: {
+    marginBottom: 25,
+  },
+  orderBubble: {
+    backgroundColor: '#E2CCB2',
+    borderRadius: 41,
     padding: 20,
-  },
-  emptyStateText: {
-    fontFamily: 'REM',
-    fontSize: 16,
-    color: '#6A462F',
+    justifyContent: 'center',
     marginBottom: 20,
+    height: 0.1*height,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
-  startShoppingButton: {
-    backgroundColor: '#CDA67A',
-    borderRadius: 15,
-    padding: 15,
-    minWidth: 200,
-    alignItems: 'center',
-  },
-  startShoppingText: {
+  orderNumber: {
     fontFamily: 'IgraSans',
-    fontSize: 16,
-    color: 'white',
+    fontSize: 20,
+    color: '#000',
+  },
+  orderSummary: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+    marginLeft: 20,
   },
   // Payment styles
   paymentContainer: {
@@ -1032,6 +1237,169 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#000',
   },
+  emptyStateText: {
+    fontFamily: 'IgraSans',
+    fontSize: 16,
+    color: '#6A462F',
+    marginBottom: 20,
+  },
+  startShoppingButton: {
+    backgroundColor: '#CDA67A',
+    borderRadius: 15,
+    padding: 15,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  startShoppingText: {
+    fontFamily: 'IgraSans',
+    fontSize: 16,
+    color: 'white',
+  },
+  orderDetailsContainer: {
+    width: '100%',
+    paddingTop: height * 0.05,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'space-between'
+  },
+  orderDetailsTitle: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+    marginBottom: 20,
+  },
+  orderItemsList: {
+    width: width*0.88,
+    paddingHorizontal: 20, 
+    borderRadius: 41,
+    height: '60%'
+  },
+  cartItem: {
+    backgroundColor: '#E2CCB2',
+    borderRadius: 41,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+    flex: 1,
+  },
+  itemPressable: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingTop: 20,
+    paddingLeft: 25,
+    paddingRight: 20,
+    paddingBottom: 15,
+  },
+  itemContent: {
+    flexDirection: 'row',
+    width: '80%',
+    alignItems: 'flex-start',
+  },
+  imageContainer: {
+    width: '30%',
+    height: '100%',
+    alignSelf: 'flex-start',
+    marginRight: 15,
+    justifyContent: 'flex-start',
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-start',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  itemDetails: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  itemName: {
+    fontFamily: 'IgraSans',
+    fontSize: 38,
+    color: '#000',
+    marginBottom: 0,
+  },
+  itemPrice: {
+    fontFamily: 'REM',
+    fontSize: 16,
+    color: '#000',
+    marginBottom: 5,
+  },
+  itemSize: {
+    fontFamily: 'IgraSans',
+    fontSize: 16,
+    color: '#000',
+    marginBottom: 20,
+  },
+  deliveryInfoChangeable: {
+    position: 'absolute',
+    marginLeft: width * 0.22,
+    bottom: 0,
+  },
+  deliveryText: {
+    fontFamily: 'IgraSans',
+    fontSize: 14,
+    color: '#000',
+    marginBottom: 5,
+  },
+  rightContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
+    width: '20%',
+  },
+  circle: {
+    position: 'absolute',
+    top: '30%',
+    bottom: '30%',
+    right: 0,
+  },
+  orderTotalContainer: {
+    justifyContent: 'center', 
+    alignItems: 'center',
+    width: '100%',
+    flex: 1
+  }, 
+  orderTotalText: {
+    fontFamily: 'IgraSans',
+    fontSize: 34,
+    color: '#000',
+  },
+  orderStatusContainer: {
+    height: height*0.1,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    backgroundColor: '#E2CCB2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    borderRadius: 41
+  },
+  orderStatus: {
+    height: '100%',
+    paddingHorizontal: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#DCBF9D',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    borderRadius: 41
+  },
+  orderStatusText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+  }
 });
 
 export default Settings; 

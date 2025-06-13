@@ -239,68 +239,6 @@ const Cart = ({ navigation }: CartProps) => {
     return () => clearInterval(intervalId);
   }, []);
 
-  const updateQuantity = async (cartItemId: string, change: number) => {
-    if (global.cartStorage) {
-      global.cartStorage.updateQuantity(cartItemId, change);
-      
-      // Get updated items
-      const updatedItems = [...global.cartStorage.getItems()];
-      
-      // Find the item that was updated
-      const updatedItem = updatedItems.find(item => item.cartItemId === cartItemId);
-      
-      if (updatedItem) {
-        // Update delivery info for the item with new quantity
-        try {
-          // Make sure we pass a number to getItemDeliveryInfo
-          const delivery = await getItemDeliveryInfo(updatedItem.id, updatedItem.quantity);
-          
-          // Map through all items and update the specific one
-          const itemsWithUpdatedDelivery = updatedItems.map(item => 
-            item.cartItemId === cartItemId 
-              ? { ...item, delivery } as CartItem 
-              : { 
-                  ...item, 
-                  delivery: (cartItems.find(ci => ci.cartItemId === item.cartItemId)?.delivery || {
-                    cost: '350 р',
-                    estimatedTime: '1-3 дня'
-                  })
-                } as CartItem
-          );
-          
-          setCartItems(itemsWithUpdatedDelivery);
-        } catch (error) {
-          console.error(`Error updating delivery info for item ${cartItemId}:`, error);
-          // Ensure all items have delivery info
-          const safeItems = updatedItems.map(item => {
-            const existingItem = cartItems.find(ci => ci.cartItemId === item.cartItemId);
-            return {
-              ...item,
-              delivery: existingItem?.delivery || {
-                cost: '350 р',
-                estimatedTime: '1-3 дня'
-              }
-            } as CartItem;
-          });
-          setCartItems(safeItems);
-        }
-      } else {
-        // Ensure all items have delivery info
-        const safeItems = updatedItems.map(item => {
-          const existingItem = cartItems.find(ci => ci.cartItemId === item.cartItemId);
-          return {
-            ...item,
-            delivery: existingItem?.delivery || {
-              cost: '350 р',
-              estimatedTime: '1-3 дня'
-            }
-          } as CartItem;
-        });
-        setCartItems(safeItems);
-      }
-    }
-  };
-
   const removeItem = (cartItemId: string) => {
     if (global.cartStorage) {
       global.cartStorage.removeItem(cartItemId);
@@ -557,7 +495,7 @@ const styles = StyleSheet.create({
     //paddingTop: 25,
   },
   cartItem: {
-    backgroundColor: 'rgba(216, 182, 143, 0.6)',
+    backgroundColor: '#E2CCB2',
     borderRadius: 41,
     marginBottom: 15,
     shadowColor: '#000',
