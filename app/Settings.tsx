@@ -13,7 +13,8 @@ import {
   TextInput,
   FlatList,
   Keyboard,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -28,9 +29,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import BackIcon from './assets/Back.svg';
 import * as Haptics from 'expo-haptics';
-import Cancel from './assets/Cancel.svg';
 import Tick from './assets/Tick';
 import { Canvas, RoundedRect, Shadow } from '@shopify/react-native-skia';
+import {AnimatedCircularProgress} from 'react-native-circular-progress';
 
 const { width, height } = Dimensions.get('window');
 
@@ -85,6 +86,9 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [popularBrands, setPopularBrands] = useState<string[]>([]);
   const [showBrandSearch, setShowBrandSearch] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<{ id: string; number: string; items: any[]; total: string; } | null>(null);
+  const [supportMessage, setSupportMessage] = useState('');
+  const [showThankYou, setShowThankYou] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   
   // Animation values
   const sizeContainerWidth = useRef(new RNAnimated.Value(height*0.1)).current;
@@ -237,6 +241,23 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     });
   };
 
+  const handleSupportSend = async () => {
+    if (!supportMessage.trim()) return;
+    
+    setIsSending(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    setShowThankYou(true);
+    setSupportMessage('');
+    setIsSending(false);
+    
+    // Hide thank you message after 2 seconds
+    setTimeout(() => {
+      setShowThankYou(false);
+    }, 2000);
+  };
+
   const renderSizeSelection = () => (
     <View style={styles.sizeSelectionWrapper}>
       <RNAnimated.View 
@@ -312,7 +333,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       </Animated.View>
 
       {/* Selected brands bubbles */}
-      <Animated.View 
+          <Animated.View 
         entering={FadeInDown.duration(500).delay(250)}
         style={[
           styles.selectedBubblesContainer,
@@ -326,7 +347,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
         >
           {selectedBrands.map(renderBrandBubble)}
         </ScrollView>
-      </Animated.View>
+          </Animated.View>
       
       {/* Search Container */}
       <Animated.View
@@ -373,15 +394,30 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     <Animated.View entering={FadeInDown.duration(500)} style={{width: '100%', alignItems: 'center', justifyContent: 'space-between', height: '100%'}}>
       {/* Profile Section */}
       <Animated.View entering={FadeInDown.duration(500).delay(100)}>
-        <Text style={styles.profileName}>Иван Иванов</Text>
+        <Text style={styles.profileName}>Рейтинг стиля</Text>
       </Animated.View>
             
-      <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.profileImageContainer}>
-        <Image 
-          source={require('./assets/Vision.png')} 
-          style={styles.profileImage}
-        />
+      <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.ratingContainer}>
+      <AnimatedCircularProgress
+                size={height * 0.125}
+                width={10}
+                fill={67}
+                tintColor="#B59679"
+                backgroundColor="#32261B"
+                rotation={225}
+                arcSweepAngle={270}
+                lineCap="round"
+                padding={10}
+                delay={200}
+              >
+                {() => (
+                  <Text style={styles.ratingText}>67</Text>
+                )}
+              </AnimatedCircularProgress>
       </Animated.View>
+      <View style={styles.ratingContainer}>
+              
+            </View>
           <Animated.View 
       //entering={FadeInDown.duration(500)}
       style={styles.mainButtonsOverlay}
@@ -391,8 +427,8 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       {renderMainButton('Способ оплаты', 'payment', 150)}
       {renderMainButton('Поддержка', 'support', 200)}
     </Animated.View>
-    </Animated.View>
-  );
+          </Animated.View>
+        );
 
   const renderWallContent = () => (
     <View style={styles.contentContainer}>
@@ -476,7 +512,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.orderDetailsContainer}>
         <ScrollView style={styles.orderItemsList} showsVerticalScrollIndicator={false}>
           {selectedOrder?.items.map((item, index) => (
-            <Animated.View 
+          <Animated.View 
             key={item.cartItemId || `${item.id}-${item.size}-${index}`}
             entering={FadeInDown.duration(500).delay(100 + index * 50)}
             style={styles.cartItem}
@@ -586,7 +622,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       return renderOrderDetails();
     }
 
-    return (
+        return (
       <View style={styles.contentContainer}>
         <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
           <TouchableOpacity onPress={() => setActiveSection(null)}>
@@ -608,7 +644,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
           ) : (
             <ScrollView style={styles.ordersList} showsVerticalScrollIndicator={false}>
               {orders.map((order, index) => (
-                <Animated.View 
+          <Animated.View 
                   key={order.id}
                   entering={FadeInDown.duration(500).delay(300 + index * 50)}
                   style={styles.orderItem}
@@ -622,7 +658,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
                   <Text style={styles.orderSummary}>
                     Итого: {order.total}
                   </Text>
-                </Animated.View>
+          </Animated.View>
               ))}
             </ScrollView>
           )}
@@ -637,7 +673,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
         <TouchableOpacity onPress={() => setActiveSection(null)}>
           <BackIcon width={33} height={33} />
         </TouchableOpacity>
-      </Animated.View>
+          </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(500).delay(250)}>
         <Text style={styles.sectionTitle}>Способ оплаты</Text>
@@ -656,26 +692,50 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
 
   const renderSupportContent = () => (
     <View style={styles.contentContainer}>
-      <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
+    <View style={styles.topContent}>
+      <Animated.View style={styles.backButtonAlt} entering={FadeInDown.duration(500).delay(200)}>
         <TouchableOpacity onPress={() => setActiveSection(null)}>
           <BackIcon width={33} height={33} />
         </TouchableOpacity>
+        <View style={styles.searchContainerAlt}>
+          {showThankYou ? (
+          <Animated.View 
+              entering={FadeInDown.duration(300)}
+              exiting={FadeOutDown.duration(300)}
+              style={styles.thankYouContainer}
+            >
+              <Text style={styles.thankYouText}>cпасибо!</Text>
+          </Animated.View>
+          ) : (
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Ввести бренд"
+              placeholderTextColor="rgba(0,0,0,1)"
+              value={supportMessage}
+              onChangeText={setSupportMessage}
+              onSubmitEditing={handleSupportSend}
+              returnKeyType="send"
+              editable={!isSending}
+            />
+          )}
+        </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.duration(500).delay(250)}>
-        <Text style={styles.sectionTitle}>Поддержка</Text>
+      <Animated.View entering={FadeInDown.duration(500).delay(250)} style={{marginTop: 20}}>
+        <Text style={styles.sectionTitle}>
+          Хотите видеть больше брендов на платформе?
+        </Text>
+        <Text style={styles.sectionTitle}>
+          Напишите и мы постараемся добавить их в скором времени
+        </Text>
       </Animated.View>
+      </View>
 
       <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.supportContainer}>
-        <Pressable style={styles.supportButton}>
-          <Text style={styles.supportButtonText}>Написать в поддержку</Text>
-        </Pressable>
-        <Pressable style={styles.supportButton}>
-          <Text style={styles.supportButtonText}>FAQ</Text>
-        </Pressable>
-        <Pressable style={styles.supportButton}>
-          <Text style={styles.supportButtonText}>Политика конфиденциальности</Text>
-        </Pressable>
+        <Text style={styles.supportText}>В случае любых вопросов напишите на почту </Text>
+        <TouchableOpacity onPress={() => Linking.openURL('mailto:polka.support@inbox.ru')}>
+          <Text style={styles.supportEmail}>polka.support@inbox.ru</Text>
+        </TouchableOpacity>
       </Animated.View>
     </View>
   );
@@ -859,12 +919,18 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 11,
   },
+  backButtonAlt: {
+    width: '100%',
+    height: height*0.1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
   sectionTitle: {
     fontFamily: 'IgraSans',
     fontSize: 20,
     color: '#000',
-    marginBottom: 15,
-    marginTop: 60,
+    lineHeight: 39
   },
   favoriteBrandsSection: {
     width: '100%',
@@ -1087,7 +1153,16 @@ const styles = StyleSheet.create({
   },
   // Support styles
   supportContainer: {
-    padding: 20,
+    width: '100%',
+    height: height*0.2,
+    justifyContent: 'center',
+    padding: 10,
+    backgroundColor: '#E2CCB2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    borderRadius: 41,
   },
   supportButton: {
     backgroundColor: 'white',
@@ -1162,6 +1237,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: 0.1*height,
     zIndex: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  topContent: {
+  flex: 1
+  },
+  searchContainerAlt: {
+    width: '100%',
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E2CCB2',
+    borderRadius: 41,
+    paddingHorizontal: 20,
+    height: 0.1*height,
+    marginLeft: 20,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1364,7 +1464,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     flex: 1
-  }, 
+  },
   orderTotalText: {
     fontFamily: 'IgraSans',
     fontSize: 34,
@@ -1399,7 +1499,40 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 20,
     color: '#000',
-  }
+  },
+  ratingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ratingText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+  },
+  supportText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+    lineHeight: 39
+  },
+  supportEmail: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+    textDecorationLine: 'underline',
+    lineHeight: 39
+  },
+  thankYouContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  thankYouText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+  },
 });
 
 export default Settings; 
