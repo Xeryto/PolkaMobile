@@ -102,9 +102,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [customRecommendations, setCustomRecommendations] = useState<{[key: number]: RecommendedItem[]}>({});
-  
-  // New state for friend requests and management
-  const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
+
   const [friendItems, setFriendItems] = useState<FriendItem[]>([
     { 
       id: 5, 
@@ -171,24 +169,6 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       name: 'SAVED ITEM 4', 
       price: '18 000 р', 
       image: require('./assets/Vision2.png')
-    },
-  ];
-
-  // Sample friend request data
-  const sampleFriendRequests: FriendRequestItem[] = [
-    { 
-      id: 9, 
-      name: 'FRIEND REQUEST 1', 
-      image: require('./assets/Vision.png'),
-      username: 'request1',
-      requestId: 101
-    },
-    { 
-      id: 10, 
-      name: 'FRIEND REQUEST 2', 
-      image: require('./assets/Vision2.png'),
-      username: 'request2',
-      requestId: 102
     },
   ];
 
@@ -938,25 +918,10 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }
     return recommendedItems[friendId] || [];
   };
-
-  // Initialize friend requests on component mount
-  useEffect(() => {
-    // Simulate loading friend requests from API
-    fetchFriendRequests();
-  }, []);
-  
-  // Mock API function to fetch friend requests
-  const fetchFriendRequests = () => {
-    console.log('Fetching friend requests from API...');
-    // Simulate API call delay
-    setTimeout(() => {
-      setFriendRequests(sampleFriendRequests);
-    }, 500);
-  };
   
   // Mock API function to accept a friend request
-  const acceptFriendRequest = async (requestId: number) => {
-    console.log(`Accepting friend request ${requestId}...`);
+  const acceptFriendRequest = async (friendId: number) => {
+    console.log(`Accepting friend request ${friendId}...`);
     try {
       // Trigger success haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -965,11 +930,11 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Find the request we're accepting
-      const request = friendRequests.find(req => req.requestId === requestId);
+      const request = friendItems.find(friend => friend.id === friendId);
       
       if (request) {
         // Remove from requests
-        setFriendRequests(prev => prev.filter(req => req.requestId !== requestId));
+        setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
         
         // Add to friends
         const newFriend: FriendItem = {
@@ -994,8 +959,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   };
   
   // Mock API function to reject a friend request
-  const rejectFriendRequest = async (requestId: number) => {
-    console.log(`Rejecting friend request ${requestId}...`);
+  const rejectFriendRequest = async (friendId: number) => {
+    console.log(`Rejecting friend request ${friendId}...`);
     try {
       // Trigger warning haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -1004,11 +969,11 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Find the request we're rejecting
-      const request = friendRequests.find(req => req.requestId === requestId);
+      const request = friendItems.find(friend => friend.id === friendId);
       
       if (request) {
         // Remove from requests
-        setFriendRequests(prev => prev.filter(req => req.requestId !== requestId));
+        setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
         
         // Update search results if this user was there
         setSearchUserStatus(request.id, 'not_friend');
@@ -1092,7 +1057,6 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               renderFriendItem={renderFriendItem}
               savedItems={savedItems}
               friendItems={friendItems}
-              friendRequests={friendRequests}
               onAcceptRequest={acceptFriendRequest}
               onRejectRequest={rejectFriendRequest}
               handleNavigate={handleNavigate}
@@ -1154,7 +1118,6 @@ interface MainContentProps {
   renderFriendItem: ListRenderItem<FriendItem>;
   savedItems: FavoriteItem[];
   friendItems: FriendItem[];
-  friendRequests: FriendRequestItem[];
   onAcceptRequest: (requestId: number) => void;
   onRejectRequest: (requestId: number) => void;
   handleNavigate: (screen: string, params?: any, fromFavorites?: boolean) => void;
@@ -1197,7 +1160,6 @@ const MainContent = ({
   renderFriendItem,
   savedItems,
   friendItems,
-  friendRequests,
   onAcceptRequest,
   onRejectRequest,
   handleNavigate
@@ -2231,10 +2193,6 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 15,
     color: 'white',
-  },
-  friendRequestsSection: {
-    width: '100%',
-    padding: 15,
   },
   sectionTitle: {
     fontFamily: 'IgraSans',
