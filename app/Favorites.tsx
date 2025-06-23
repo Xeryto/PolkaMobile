@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { 
   View, 
   Text, 
@@ -14,7 +14,9 @@ import {
   Animated as RNAnimated,
   Easing as RNEasing,
   ListRenderItem,
-  ListRenderItemInfo
+  ListRenderItemInfo,
+  FlexAlignType,
+  FlexStyle
 } from 'react-native';
 import Animated, { 
   FadeIn, 
@@ -81,6 +83,17 @@ interface RecommendedItem {
   isLiked?: boolean;
 }
 
+interface UserActionButtonProps {
+  status: FriendItem['status'];
+  onAddFriend?: () => void;
+  onCancelRequest?: () => void;
+  onAcceptRequest?: () => void;
+  onRejectRequest?: () => void;
+  onRemoveFriend?: () => void;
+  styles: any;
+  width: number;
+}
+
 const { width, height } = Dimensions.get('window');
 
 // Use platform-specific animation configs
@@ -91,6 +104,71 @@ const ANIMATION_CONFIG = {
 
 // Disable complex animations on Android for better performance
 const USE_ANIMATIONS = Platform.OS === 'ios';
+
+// UserActionButton: renders the correct action button for a user status
+const UserActionButton = memo(({
+  status,
+  onAddFriend,
+  onCancelRequest,
+  onAcceptRequest,
+  onRejectRequest,
+  onRemoveFriend,
+  styles,
+  width
+}: UserActionButtonProps) => {
+  // Button container style for non-overlay buttons
+  const buttonContainerStyle = {
+    width: width * 0.15,
+    height: width * 0.15,
+    justifyContent: 'center' as FlexStyle['justifyContent'],
+    alignItems: 'center' as FlexAlignType,
+  };
+
+  if (status === 'friend') {
+    // This is an overlay button. Return it without the container so it doesn't affect the layout.
+    return (
+      <TouchableOpacity style={styles.removeFriendButton} onPress={onRemoveFriend}>
+        <CancelThickIcon />
+      </TouchableOpacity>
+    );
+  }
+
+  // For all other statuses, the button is part of the layout flow, so it needs the container.
+  const otherButtons = (
+    <>
+      {status === 'request_received' && (
+        <View style={styles.stackedButtonsContainer}>
+          <TouchableOpacity style={[styles.stackedButton, styles.acceptButton]} onPress={onAcceptRequest}>
+            <CheckIcon width={width * 0.1} height={width * 0.1} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.stackedButton, styles.rejectButton]} onPress={onRejectRequest}>
+            <CancelIcon width={width * 0.12} height={width * 0.12} />
+          </TouchableOpacity>
+        </View>
+      )}
+      {status === 'not_friend' && (
+        <Animated.View entering={FadeInDown.duration(300)}>
+          <TouchableOpacity style={[styles.addFriendButton, styles.stackedButton]} onPress={onAddFriend}>
+            <PlusIcon />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+      {status === 'request_sent' && (
+        <Animated.View entering={FadeInDown.duration(300)}>
+          <TouchableOpacity style={[styles.stackedButton, styles.rejectButton, styles.cancelRequestButton]} onPress={onCancelRequest}>
+            <Text style={styles.cancelRequestText}>Отменить заявку</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+    </>
+  );
+
+  return (
+    <View style={buttonContainerStyle}>
+      {otherButtons}
+    </View>
+  );
+});
 
 const Favorites = ({ navigation }: FavoritesProps) => {
   // Basic state
@@ -132,9 +210,19 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       username: 'friend4',
       status: 'friend'
     },
+    // TEST: Add a request_sent friend
+    {
+      id: 15,
+      name: 'REQUEST SENT MAIN',
+      image: require('./assets/Vision2.png'),
+      username: 'reqsentmain',
+      status: 'request_sent'
+    },
   ]);
-  const [pendingRemoval, setPendingRemoval] = useState<FriendItem | null>(null);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [mainPendingRemoval, setMainPendingRemoval] = useState<FriendItem | null>(null);
+  const [mainShowConfirmDialog, setMainShowConfirmDialog] = useState(false);
+  const [searchPendingRemoval, setSearchPendingRemoval] = useState<FriendItem | null>(null);
+  const [searchShowConfirmDialog, setSearchShowConfirmDialog] = useState(false);
   
   // Opacity values for the main view and search view
   const mainViewOpacity = useSharedValue(1);
@@ -425,49 +513,30 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }, delay);
   };
 
-  // Filter friends based on search query with sample status data
+  // 1. Move extra search users to state
+  const [searchMockUsers, setSearchMockUsers] = useState<FriendItem[]>([
+    { id: 11, name: 'NEW USER 1', image: require('./assets/Vision.png'), username: 'newuser1', status: 'not_friend' },
+    { id: 12, name: 'NEW USER 2', image: require('./assets/Vision2.png'), username: 'newuser2', status: 'not_friend' },
+    { id: 13, name: 'REQUEST PENDING 1', image: require('./assets/Vision.png'), username: 'pending1', status: 'request_received' },
+    { id: 14, name: 'REQUEST SENT 1', image: require('./assets/Vision2.png'), username: 'sent1', status: 'request_sent' },
+    { id: 16, name: 'REQUEST SENT SEARCH', image: require('./assets/Vision.png'), username: 'reqsentsearch', status: 'request_sent' },
+  ]);
+
+  // 2. Update filteredFriends to combine friendItems and searchMockUsers
   const filteredFriends = searchQuery.length > 0
     ? [
         ...friendItems.filter(item => 
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.username.toLowerCase().includes(searchQuery.toLowerCase())
         ),
-        // Add some non-friend users for demonstration
-        ...[
-          { 
-            id: 11, 
-            name: 'NEW USER 1', 
-            image: require('./assets/Vision.png'),
-            username: 'newuser1',
-            status: 'not_friend'
-          },
-          { 
-            id: 12, 
-            name: 'NEW USER 2', 
-            image: require('./assets/Vision2.png'),
-            username: 'newuser2',
-            status: 'not_friend'
-          },
-          { 
-            id: 13, 
-            name: 'REQUEST PENDING 1', 
-            image: require('./assets/Vision.png'),
-            username: 'pending1',
-            status: 'request_received'
-          },
-          { 
-            id: 14, 
-            name: 'REQUEST SENT 1', 
-            image: require('./assets/Vision2.png'),
-            username: 'sent1',
-            status: 'request_sent'
-          }
-        ].filter(item => 
+        ...searchMockUsers.filter(item => 
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.username.toLowerCase().includes(searchQuery.toLowerCase())
         )
       ]
     : [];
+
+
 
   // Render a saved item
   const renderSavedItem: ListRenderItem<FavoriteItem> = ({ item, index, separators }) => {
@@ -527,163 +596,63 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     );
   };
 
-  // Render a friend item
-  const renderFriendItem: ListRenderItem<FriendItem> = ({ item, index, separators }) => {
-    // If this item is pending removal and the confirmation dialog is shown,
-    // render the confirmation UI instead
-    if (pendingRemoval && pendingRemoval.id === item.id && showConfirmDialog) {
+  // Replace renderFriendItem
+  const renderFriendItem: ListRenderItem<FriendItem> = ({ item, index }) => {
+    if (mainPendingRemoval && mainShowConfirmDialog && mainPendingRemoval.id === item.id) {
       return (
         <View style={styles.itemWrapper}>
-          <Animated.View
-            entering={FadeInDown.duration(300)}
-            style={styles.itemContainer}
-          >
+          <View style={styles.itemContainer}>
             <View style={styles.confirmationContainer}>
-              <Text style={styles.confirmationText}>
-                Подтвердить удаление из друзей?
-              </Text>
+              <Text style={styles.confirmationText}>Подтвердить удаление из друзей?</Text>
               <View style={styles.confirmationButtons}>
-                <TouchableOpacity 
-                  style={[styles.confirmButton, styles.confirmYesButton]} 
-                  onPress={() => {
-                    // Trigger success haptic feedback for confirmation
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    removeFriend(item.id);
-                  }}
-                >
+                <TouchableOpacity style={[styles.confirmButton, styles.confirmYesButton]} onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  removeFriend(item.id);
+                  setMainShowConfirmDialog(false);
+                  setMainPendingRemoval(null);
+                }}>
                   <Text style={styles.confirmButtonText}>Да</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.confirmButton, styles.confirmNoButton]}
-                  onPress={() => {
-                    // Trigger light haptic feedback for cancellation
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowConfirmDialog(false);
-                    setPendingRemoval(null);
-                  }}
-                >
+                <TouchableOpacity style={[styles.confirmButton, styles.confirmNoButton]} onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setMainShowConfirmDialog(false);
+                  setMainPendingRemoval(null);
+                }}>
                   <Text style={styles.confirmButtonText}>Нет</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </Animated.View>
+          </View>
         </View>
       );
     }
-    
     const handleAcceptRequest = async () => {
       if (item.status === 'request_received') {
         await acceptFriendRequest(item.id);
       }
     };
-
     const handleRejectRequest = async () => {
       if (item.status === 'request_received') {
         await rejectFriendRequest(item.id);
       }
     };
-
-    // Regular friend item UI
-    if (!USE_ANIMATIONS) {
-      return (
-        <View style={styles.itemWrapper}>
-          <View style={styles.itemContainer}>
-            <Pressable 
-              style={styles.imageContainer}
-              onPress={() => {
-                console.log(`Friend item pressed: ${item.name}`);
-                handleFriendSelect(item);
-              }}
-            >
-              <View style={styles.imageContainer}>
-                <Image source={item.image} style={styles.userImage} />
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
-              </View>
-            </Pressable>
-            {item.status === 'friend' ? (
-              <TouchableOpacity 
-                style={styles.removeFriendButton}
-                onPress={() => {
-                  setPendingRemoval(item);
-                  setShowConfirmDialog(true);
-                }}
-              >
-                <CancelThickIcon width={width * 0.1} height={width * 0.1} />
-              </TouchableOpacity>
-            ) : item.status === 'request_received' ? (
-              <View style={styles.stackedButtonsContainer}>
-                <TouchableOpacity 
-                  style={[styles.stackedButton, styles.acceptButton]}
-                  onPress={handleAcceptRequest}
-                >
-                  <CheckIcon width={width * 0.1} height={width * 0.1} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.stackedButton, styles.rejectButton]}
-                  onPress={handleRejectRequest}
-                >
-                  <CancelIcon width={width * 0.1} height={width * 0.1} />
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </View>
-        </View>
-      );
-    }
-    
-    // More complex animations for iOS
     return (
-      <View style={styles.itemWrapper}>
-        <Animated.View
-          entering={FadeInDown.duration(300).delay(100 + index * 50)}
-          exiting={FadeOutDown.duration(50)}
-        >
-          <View style={styles.itemContainer}>
-            <Pressable 
-              style={styles.userImageContainer}
-              onPress={() => {
-                console.log(`Friend item pressed: ${item.name}`);
-                handleFriendSelect(item);
-              }}
-            >
-              <View style={styles.imageContainer}>
-                <Image source={item.image} style={styles.userImage} />
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
-              </View>
-            </Pressable>
-            {item.status === 'friend' ? (
-              <TouchableOpacity 
-                style={styles.removeFriendButton}
-                onPress={() => {
-                  setPendingRemoval(item);
-                  setShowConfirmDialog(true);
-                }}
-              >
-                <CancelThickIcon  />
-              </TouchableOpacity>
-            ) : item.status === 'request_received' ? (
-              <View style={styles.stackedButtonsContainer}>
-              <TouchableOpacity 
-                style={[styles.stackedButton, styles.acceptButton]}
-                onPress={handleAcceptRequest}
-              >
-                <CheckIcon width={width * 0.1} height={width * 0.1} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.stackedButton, styles.rejectButton]}
-                onPress={handleRejectRequest}
-              >
-                <CancelIcon width={width * 0.12} height={width * 0.12} />
-              </TouchableOpacity>
-            </View>
-            ) : null}
-          </View>
-        </Animated.View>
-      </View>
+      <FriendListItem
+        item={item}
+        onAddFriend={() => sendFriendRequest(item.id)}
+        onCancelRequest={() => cancelFriendRequest(item.id)}
+        onAcceptRequest={handleAcceptRequest}
+        onRejectRequest={handleRejectRequest}
+        onRemoveFriend={() => {
+          setMainPendingRemoval(item);
+          setMainShowConfirmDialog(true);
+        }}
+        onPress={() => {
+          handleFriendSelect(item);
+        }}
+        styles={styles}
+        width={width}
+      />
     );
   };
 
@@ -779,6 +748,40 @@ const Favorites = ({ navigation }: FavoritesProps) => {
 
   // Custom render function for search results that includes user status
   const renderSearchUser: ListRenderItem<any> = ({ item, index, separators }) => {
+    if (searchPendingRemoval && searchShowConfirmDialog && searchPendingRemoval.id === item.id) {
+      return (
+        <View style={styles.searchItemWrapper}>
+          <View style={styles.itemContainer}>
+            <View style={styles.confirmationContainer}>
+              <Text style={styles.confirmationText}>Подтвердить удаление из друзей?</Text>
+              <View style={styles.confirmationButtons}>
+                <TouchableOpacity 
+                  style={[styles.confirmButton, styles.confirmYesButton]} 
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    removeFriend(item.id);
+                    setSearchShowConfirmDialog(false);
+                    setSearchPendingRemoval(null);
+                  }}
+                >
+                  <Text style={styles.confirmButtonText}>Да</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.confirmButton, styles.confirmNoButton]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSearchShowConfirmDialog(false);
+                    setSearchPendingRemoval(null);
+                  }}
+                >
+                  <Text style={styles.confirmButtonText}>Нет</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
     const handleAcceptRequest = async () => {
       if (item.status === 'request_received') {
         await acceptFriendRequest(item.id);
@@ -791,102 +794,70 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       }
     };
 
-    // If this item is pending removal and the confirmation dialog is shown,
-    // render the confirmation UI instead
-    if (pendingRemoval && pendingRemoval.id === item.id && showConfirmDialog) {
-      return (
-        <View style={styles.searchItemWrapper}>
-          <Animated.View
-            entering={FadeInDown.duration(300)}
-            style={styles.itemContainer}
-          >
-            <View style={styles.confirmationContainer}>
-              <Text style={styles.confirmationText}>
-                Подтвердить удаление из друзей?
-              </Text>
-              <View style={styles.confirmationButtons}>
-                <TouchableOpacity 
-                  style={[styles.confirmButton, styles.confirmYesButton]} 
-                  onPress={() => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    removeFriend(item.id);
-                  }}
-                >
-                  <Text style={styles.confirmButtonText}>Да</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.confirmButton, styles.confirmNoButton]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowConfirmDialog(false);
-                    setPendingRemoval(null);
-                  }}
-                >
-                  <Text style={styles.confirmButtonText}>Нет</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        </View>
-      );
-    }
-
     return (
       <View style={styles.searchItemWrapper}>
-        <Animated.View
-          entering={FadeInDown.duration(300).delay(100 + index * 50)}
-          exiting={FadeOutDown.duration(50)}
-        >
-          <View style={styles.itemContainer}>
-            <Pressable 
-              style={styles.userImageContainer}
+        <View style={styles.itemContainer}>
+          <Pressable 
+            style={styles.userImageContainer}
+            onPress={() => {
+              console.log(`Friend item pressed: ${item.name}`);
+              handleFriendSelect(item);
+            }}
+          >
+            <View style={styles.imageContainer}>
+              <Image source={item.image} style={styles.userImage} />
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
+            </View>
+          </Pressable>
+          {item.status === 'friend' ? (
+            <TouchableOpacity 
+              style={styles.removeFriendButton}
               onPress={() => {
-                console.log(`Friend item pressed: ${item.name}`);
-                handleFriendSelect(item);
+                setSearchPendingRemoval(item);
+                setSearchShowConfirmDialog(true);
               }}
             >
-              <View style={styles.imageContainer}>
-                <Image source={item.image} style={styles.userImage} />
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
-              </View>
-            </Pressable>
-            {item.status === 'friend' ? (
+              <CancelThickIcon />
+            </TouchableOpacity>
+          ) : item.status === 'request_received' ? (
+            <View style={styles.stackedButtonsContainer}>
               <TouchableOpacity 
-                style={styles.removeFriendButton}
-                onPress={() => {
-                  setPendingRemoval(item);
-                  setShowConfirmDialog(true);
-                }}
+                style={[styles.stackedButton, styles.acceptButton]}
+                onPress={handleAcceptRequest}
               >
-                <CancelThickIcon />
+                <CheckIcon width={width * 0.1} height={width * 0.1} />
               </TouchableOpacity>
-            ) : item.status === 'request_received' ? (
-              <View style={styles.stackedButtonsContainer}>
-                <TouchableOpacity 
-                  style={[styles.stackedButton, styles.acceptButton]}
-                  onPress={handleAcceptRequest}
-                >
-                  <CheckIcon width={width * 0.1} height={width * 0.1} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.stackedButton, styles.rejectButton]}
-                  onPress={handleRejectRequest}
-                >
-                  <CancelIcon width={width * 0.12} height={width * 0.12} />
-                </TouchableOpacity>
-              </View>
-            ) : item.status === 'not_friend' ? (
               <TouchableOpacity 
-                style={styles.addFriendButton}
+                style={[styles.stackedButton, styles.rejectButton]}
+                onPress={handleRejectRequest}
+              >
+                <CancelIcon width={width * 0.12} height={width * 0.12} />
+              </TouchableOpacity>
+            </View>
+          ) : item.status === 'not_friend' ? (
+            <View style={styles.buttonContainerStyle}>
+              <TouchableOpacity 
+                style={[styles.addFriendButton, styles.stackedButton]}
                 onPress={() => sendFriendRequest(item.id)}
               >
                 <PlusIcon/>
               </TouchableOpacity>
-            ) : null}
-          </View>
-        </Animated.View>
+            </View>
+          ) : item.status === 'request_sent' ? (
+            <View style={styles.buttonContainerStyle}>
+              <Animated.View entering={FadeInDown.duration(300)}>
+                <TouchableOpacity 
+                  style={[styles.stackedButton, styles.rejectButton, styles.cancelRequestButton]}
+                  onPress={() => cancelFriendRequest(item.id)}
+                >
+                  <Text style={styles.cancelRequestText}>Отменить заявку</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          ) : null}
+        </View>
       </View>
     );
   };
@@ -996,30 +967,38 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       // Remove from friends list
       setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
       // Close the confirmation dialog
-      setShowConfirmDialog(false);
-      setPendingRemoval(null);
+      setMainShowConfirmDialog(false);
+      setMainPendingRemoval(null);
     }, 500);
   };
   
   // Mock API function to send a friend request
   const sendFriendRequest = (userId: number) => {
     console.log(`Sending friend request to user ${userId}...`);
-    // Trigger success haptic feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    // Simulate API call
     setTimeout(() => {
-      // Update the user's status to "request_sent" in search results
-      // This would normally come from the API response
-      // Here we're just simulating it by updating the UI
+      setFriendItems(prev => prev.map(friend =>
+        friend.id === userId ? { ...friend, status: 'request_sent' } : friend
+      ));
       setSearchUserStatus(userId, 'request_sent');
     }, 500);
   };
   
   // Helper function to update user status in search results
   const setSearchUserStatus = (userId: number, status: FriendItem['status']) => {
-    // In a real app, this would update the cache or trigger a refetch
-    console.log(`User ${userId} status updated to ${status}`);
+    setSearchMockUsers(prev => prev.map(user =>
+      user.id === userId ? { ...user, status } : user
+    ));
+  };
+
+  // 1. Add cancelFriendRequest method
+  const cancelFriendRequest = (userId: number) => {
+    // Update the user's status to 'not_friend' in friendItems and trigger re-render
+    setFriendItems(prev => prev.map(friend =>
+      friend.id === userId ? { ...friend, status: 'not_friend' } : friend
+    ));
+    // Also update search results if needed
+    setSearchUserStatus(userId, 'not_friend');
   };
 
   // Don't render until interactions are complete
@@ -1075,14 +1054,14 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               onRemoveFriend={(friendId) => {
                 const friend = friendItems.find(f => f.id === friendId);
                 if (friend) {
-                  setPendingRemoval(friend);
-                  setShowConfirmDialog(true);
+                  setSearchPendingRemoval(friend);
+                  setSearchShowConfirmDialog(true);
                 }
               }}
-              pendingRemoval={pendingRemoval}
-              showConfirmDialog={showConfirmDialog}
-              setShowConfirmDialog={setShowConfirmDialog}
-              setPendingRemoval={setPendingRemoval}
+              pendingRemoval={searchPendingRemoval}
+              showConfirmDialog={searchShowConfirmDialog}
+              setShowConfirmDialog={setSearchShowConfirmDialog}
+              setPendingRemoval={setSearchPendingRemoval}
               removeFriend={removeFriend}
             />
           </Animated.View>
@@ -1781,8 +1760,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE7E2',
     borderRadius: 30,
     position: 'relative', // For absolute positioned elements
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', // Center vertically
+    alignItems: 'center', // Center horizontally
     flexDirection: 'row',
   },
   searchItem: {
@@ -1796,7 +1775,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE7E2',
     borderRadius: 30,
     position: 'relative', // For absolute positioned elements
-    flexDirection: 'row'
+    flexDirection: 'row',
+    justifyContent: 'center', // Center vertically
+    alignItems: 'center', // Center horizontally
   },
   userImageContainer: {
     alignItems: 'center',
@@ -2127,10 +2108,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   acceptButton: {
-    backgroundColor: 'rgba(109, 230, 153, 0.54)',
+    backgroundColor: '#A8E6BB',
   },
   rejectButton: {
-    backgroundColor: 'rgba(230, 109, 123, 0.54)'
+    backgroundColor: '#E9A5AA'
   },
   requestButtonText: {
     fontFamily: 'IgraSans',
@@ -2140,9 +2121,9 @@ const styles = StyleSheet.create({
   confirmationContainer: {
     height: '88%',
     width: '88%',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
+    padding: 14,
     backgroundColor: '#E9A5AA',
     borderRadius: 30,
   },
@@ -2150,7 +2131,7 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 15,
     color: '#4A3120',
-    marginBottom: 20,
+    lineHeight: 20,
     opacity: 0.8,
     textAlign: 'center',
   },
@@ -2161,6 +2142,9 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     padding: 10,
+    width: '50%',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: 20,
     backgroundColor: '#C8A688',
     shadowColor: '#000',
@@ -2170,10 +2154,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   confirmYesButton: {
-    backgroundColor: '#6DE699',
+    backgroundColor: '#E78791', // Red for remove 
   },
   confirmNoButton: {
-    backgroundColor: '#FC8CAF',
+    backgroundColor: '#B0B0B0',
   },
   confirmButtonText: {
     fontFamily: 'IgraSans',
@@ -2242,6 +2226,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'white',
   },
+  cancelRequestButton: {
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingHorizontal: 3,
+    width: width * 0.15,
+    height: width * 0.15,
+  },
+  cancelRequestText: {
+    color: '#4A3120', 
+    fontFamily: 'IgraSans', 
+    fontSize: 10,
+    textAlign: 'center'
+  },
   stackedButtonsContainer: {
     position: 'relative',
     marginLeft: 5,
@@ -2279,6 +2277,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1000,
   },
+  buttonContainerStyle: {
+    width: width * 0.15,
+    height: width * 0.15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
+
+// Add above Favorites component
+interface FriendListItemProps {
+  item: FriendItem;
+  onAddFriend?: () => void;
+  onCancelRequest?: () => void;
+  onAcceptRequest?: () => void;
+  onRejectRequest?: () => void;
+  onRemoveFriend?: () => void;
+  onPress?: () => void;
+  styles: any;
+  width: number;
+}
+
+const FriendListItem = memo(({ item, onAddFriend, onCancelRequest, onAcceptRequest, onRejectRequest, onRemoveFriend, onPress, styles, width }: FriendListItemProps) => {
+  return (
+    <View style={styles.itemWrapper}>
+      <View style={styles.itemContainer}>
+        <Pressable 
+          style={styles.userImageContainer}
+          onPress={onPress}
+        >
+          <View style={styles.imageContainer}>
+            <Image source={item.image} style={styles.userImage} />
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
+          </View>
+        </Pressable>
+        <UserActionButton
+          status={item.status}
+          onAddFriend={onAddFriend}
+          onCancelRequest={onCancelRequest}
+          onAcceptRequest={onAcceptRequest}
+          onRejectRequest={onRejectRequest}
+          onRemoveFriend={onRemoveFriend}
+          styles={styles}
+          width={width}
+        />
+      </View>
+    </View>
+  );
+});
+
+// Now update renderFriendItem and renderSearchUser to use FriendListItem
 
 export default Favorites;

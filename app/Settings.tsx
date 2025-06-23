@@ -14,7 +14,8 @@ import {
   FlatList,
   Keyboard,
   Platform,
-  Linking
+  Linking,
+  Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -28,6 +29,7 @@ import Animated, {
   FadeOut
 } from 'react-native-reanimated';
 import BackIcon from './assets/Back.svg';
+import LogOut from './assets/LogOut.svg';
 import * as Haptics from 'expo-haptics';
 import Tick from './assets/Tick';
 import { Canvas, RoundedRect, Shadow } from '@shopify/react-native-skia';
@@ -450,6 +452,18 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
             </TouchableOpacity>
           </Animated.View>
           
+          {/* Logout Button - positioned symmetrically to back button */}
+          <Animated.View style={styles.logoutButton} entering={FadeInDown.duration(500).delay(200)}>
+            <TouchableOpacity 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                handleLogout();
+              }}
+            >
+              <LogOut width={26} height={26} />
+            </TouchableOpacity>
+          </Animated.View>
+          
           <Animated.View entering={FadeInDown.duration(500).delay(250)} style={styles.favoriteBrandsSection}>
             <TouchableOpacity 
               style={styles.favoriteBrandsButton}
@@ -774,6 +788,31 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Выход',
+      'Вы уверены, что хотите выйти из аккаунта?',
+      [
+        {
+          text: 'Отмена',
+          style: 'cancel',
+        },
+        {
+          text: 'Выйти',
+          style: 'destructive',
+          onPress: () => {
+            // Handle logout
+            console.log('User logged out');
+            if (onLogout) {
+              onLogout();
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Animated.View 
@@ -859,7 +898,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'column',
-    gap: 10
+    gap: 10,
+    marginTop: 5
   },
   profileImageContainer: {
     width: width * 0.25,
@@ -1529,6 +1569,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   thankYouText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 11,
+  },
+  logoutButtonText: {
     fontFamily: 'IgraSans',
     fontSize: 20,
     color: '#000',
