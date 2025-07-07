@@ -1,15 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Keys for storing auth data
-const AUTH_TOKEN_KEY = '@PolkaMobile:authToken';
-const USER_DATA_KEY = '@PolkaMobile:userData';
-const IS_LOGGED_IN_KEY = '@PolkaMobile:isLoggedIn';
+const AUTH_TOKEN_KEY = 'PolkaMobile_authToken';
+const USER_DATA_KEY = 'PolkaMobile_userData';
+const IS_LOGGED_IN_KEY = 'PolkaMobile_isLoggedIn';
 
 export interface UserData {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  // Add any other user profile data you want to store
+  first_name?: string;
+  last_name?: string;
+  is_profile_complete: boolean;
+  style_preference?: 'option1' | 'option2';
+  selected_brands?: string[];
+  favorite_styles?: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 // Store authentication token securely

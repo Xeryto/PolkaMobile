@@ -1,27 +1,168 @@
+import * as SecureStore from 'expo-secure-store';
+import { API_CONFIG } from './config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API configuration
-const API_URL = 'https://api.polkamobile.com'; // Replace with your actual API URL
-const SESSION_TOKEN_KEY = '@PolkaMobile:sessionToken';
-const SESSION_EXPIRY_KEY = '@PolkaMobile:sessionExpiry';
-const USER_PROFILE_KEY = '@PolkaMobile:userProfile'; // Added to persist user data between sessions
+const API_URL = API_CONFIG.API_BASE_URL;
+const SESSION_TOKEN_KEY = 'PolkaMobile_sessionToken';
+const SESSION_REFRESH_TOKEN_KEY = 'PolkaMobile_refreshToken';
+const SESSION_EXPIRY_KEY = 'PolkaMobile_sessionExpiry';
+const USER_PROFILE_KEY = 'PolkaMobile_userProfile';
 
-// User profile interfaces
+// Session management events
+export type SessionEvent = 'token_expired' | 'token_refreshed' | 'session_cleared' | 'login_required';
+
+// Session event listener type
+export type SessionEventListener = (event: SessionEvent) => void;
+
+// Session manager class
+class SessionManager {
+  private listeners: SessionEventListener[] = [];
+  private isRefreshing = false;
+  private refreshPromise: Promise<string> | null = null;
+
+  // Add event listener
+  addListener(listener: SessionEventListener) {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  // Emit event to all listeners
+  private emit(event: SessionEvent) {
+    this.listeners.forEach(listener => listener(event));
+  }
+
+  // Check if token is expired or will expire soon (within 5 minutes)
+  private isTokenExpiredOrExpiringSoon(expiryDate: Date): boolean {
+    const now = new Date();
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+    return expiryDate <= fiveMinutesFromNow;
+  }
+
+  // Refresh token
+  async refreshToken(): Promise<string> {
+    if (this.isRefreshing) {
+      return this.refreshPromise!;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = (async () => {
+      try {
+        const refreshToken = await SecureStore.getItemAsync(SESSION_REFRESH_TOKEN_KEY);
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
+        }
+
+        const response = await refreshAuthToken(refreshToken);
+        await this.storeSession(response.token, response.expires_at, response.refresh_token);
+        this.emit('token_refreshed');
+        return response.token;
+      } catch (error) {
+        await this.clearSession();
+        this.emit('login_required');
+        throw new Error('Token refresh failed');
+      } finally {
+        this.isRefreshing = false;
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
+  // Store session
+  async storeSession(token: string, expiresAt: string, refreshToken?: string) {
+    try {
+      await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
+      await SecureStore.setItemAsync(SESSION_EXPIRY_KEY, expiresAt);
+      if (refreshToken) {
+        await SecureStore.setItemAsync(SESSION_REFRESH_TOKEN_KEY, refreshToken);
+      }
+    } catch (error) {
+      console.error('Error storing session:', error);
+      throw error;
+    }
+  }
+
+  // Get current session with automatic refresh
+  async getValidSession(): Promise<{ token: string | null, isValid: boolean }> {
+    try {
+      const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
+      const expiryString = await SecureStore.getItemAsync(SESSION_EXPIRY_KEY);
+      
+      if (!token || !expiryString) {
+        return { token: null, isValid: false };
+      }
+      
+      const expiryDate = new Date(expiryString);
+      
+      if (this.isTokenExpiredOrExpiringSoon(expiryDate)) {
+        try {
+          const newToken = await this.refreshToken();
+          return { token: newToken, isValid: true };
+        } catch (error) {
+          return { token: null, isValid: false };
+        }
+      }
+      
+      return { token, isValid: true };
+    } catch (error) {
+      console.error('Error getting session:', error);
+      return { token: null, isValid: false };
+    }
+  }
+
+  // Clear session
+  async clearSession() {
+    try {
+      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(SESSION_REFRESH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(SESSION_EXPIRY_KEY);
+      await AsyncStorage.removeItem(USER_PROFILE_KEY);
+      this.emit('session_cleared');
+    } catch (error) {
+      console.error('Error clearing session:', error);
+      throw error;
+    }
+  }
+
+  // Check if user is authenticated
+  async isAuthenticated(): Promise<boolean> {
+    const { isValid } = await this.getValidSession();
+    return isValid;
+  }
+
+  // Public method to handle login required
+  handleLoginRequired() {
+    this.emit('login_required');
+  }
+}
+
+// Create global session manager instance
+export const sessionManager = new SessionManager();
+
+// Updated User profile interfaces to match new API
 export interface UserProfile {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  isProfileComplete: boolean;
-  stylePreference?: 'option1' | 'option2'; // Gender preference
-  selectedBrands?: string[];
-  favoriteStyles?: string[];
-  createdAt: string;
-  updatedAt: string;
+  first_name?: string;
+  last_name?: string;
+  gender?: 'male' | 'female';
+  selected_size?: string;
+  is_profile_complete: boolean;
+  favorite_brands: Brand[];
+  favorite_styles: Style[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AuthResponse {
   token: string;
-  expiresAt: string;
+  expires_at: string;
+  refresh_token: string;
   user: UserProfile;
 }
 
@@ -31,7 +172,20 @@ export interface ProfileCompletionStatus {
   requiredScreens: ('confirmation' | 'brands' | 'styles')[];
 }
 
-// Product interfaces
+// OAuth interfaces
+export interface OAuthProvider {
+  provider: string;
+  client_id: string;
+  redirect_url: string;
+  scope: string;
+}
+
+export interface OAuthLoginRequest {
+  provider: string;
+  token: string;
+}
+
+// Product interfaces (keeping existing ones)
 export interface Product {
   id: number;
   name: string;
@@ -94,7 +248,7 @@ const handleApiResponse = async (response: Response) => {
   
   if (!response.ok) {
     throw new ApiError(
-      data.message || 'An error occurred',
+      data.detail || data.message || 'An error occurred',
       response.status
     );
   }
@@ -102,21 +256,23 @@ const handleApiResponse = async (response: Response) => {
   return data;
 };
 
-// API request helper with authentication
+// API request helper with automatic token refresh
 const apiRequest = async (
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: any
+  body?: any,
+  requireAuth: boolean = true
 ) => {
-  // Get session token
-  const token = await AsyncStorage.getItem(SESSION_TOKEN_KEY);
-  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
   
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (requireAuth) {
+    const session = await sessionManager.getValidSession();
+    if (!session.isValid) {
+      throw new ApiError('Authentication required', 401);
+    }
+    headers['Authorization'] = `Bearer ${session.token}`;
   }
   
   const config: RequestInit = {
@@ -130,6 +286,12 @@ const apiRequest = async (
   
   try {
     const response = await fetch(`${API_URL}${endpoint}`, config);
+    
+    if (response.status === 401 && requireAuth) {
+      await sessionManager.clearSession();
+      sessionManager.handleLoginRequired();
+    }
+    
     return await handleApiResponse(response);
   } catch (error) {
     if (error instanceof ApiError) {
@@ -141,47 +303,17 @@ const apiRequest = async (
   }
 };
 
-// Session management
-export const storeSession = async (token: string, expiresAt: string) => {
-  try {
-    await AsyncStorage.setItem(SESSION_TOKEN_KEY, token);
-    await AsyncStorage.setItem(SESSION_EXPIRY_KEY, expiresAt);
-  } catch (error) {
-    console.error('Error storing session:', error);
-    throw error;
-  }
+// Legacy functions for backward compatibility
+export const storeSession = async (token: string, expiresAt: string, refreshToken?: string) => {
+  await sessionManager.storeSession(token, expiresAt, refreshToken);
 };
 
 export const getSession = async (): Promise<{ token: string | null, isValid: boolean }> => {
-  try {
-    const token = await AsyncStorage.getItem(SESSION_TOKEN_KEY);
-    const expiryString = await AsyncStorage.getItem(SESSION_EXPIRY_KEY);
-    
-    if (!token || !expiryString) {
-      return { token: null, isValid: false };
-    }
-    
-    const expiryDate = new Date(expiryString);
-    const now = new Date();
-    
-    return {
-      token,
-      isValid: expiryDate > now
-    };
-  } catch (error) {
-    console.error('Error getting session:', error);
-    return { token: null, isValid: false };
-  }
+  return await sessionManager.getValidSession();
 };
 
 export const clearSession = async () => {
-  try {
-    await AsyncStorage.removeItem(SESSION_TOKEN_KEY);
-    await AsyncStorage.removeItem(SESSION_EXPIRY_KEY);
-  } catch (error) {
-    console.error('Error clearing session:', error);
-    throw error;
-  }
+  await sessionManager.clearSession();
 };
 
 // User profile persistence
@@ -190,583 +322,183 @@ export const storeUserProfile = async (profile: UserProfile) => {
     await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
   } catch (error) {
     console.error('Error storing user profile:', error);
+    throw error;
   }
 };
 
 export const retrieveUserProfile = async (): Promise<UserProfile | null> => {
   try {
-    const profileJson = await AsyncStorage.getItem(USER_PROFILE_KEY);
-    return profileJson ? JSON.parse(profileJson) : null;
+    const profileString = await AsyncStorage.getItem(USER_PROFILE_KEY);
+    return profileString ? JSON.parse(profileString) : null;
   } catch (error) {
     console.error('Error retrieving user profile:', error);
     return null;
   }
 };
 
-// Authentication API
+// Updated Authentication API functions
 export const registerUser = async (
   username: string,
   email: string,
-  password: string
+  password: string,
+  first_name?: string,
+  last_name?: string
 ): Promise<AuthResponse> => {
-  return apiRequest('/auth/register', 'POST', {
+  const response = await apiRequest('/api/v1/auth/register', 'POST', {
     username,
     email,
-    password
-  });
+    password,
+    first_name,
+    last_name
+  }, false);
+
+  // Store session
+  await sessionManager.storeSession(
+    response.token,
+    response.expires_at,
+    response.refresh_token
+  );
+
+  // Store user profile
+  await storeUserProfile(response.user);
+
+  return response;
 };
 
 export const loginUser = async (
-  email: string,
+  identifier: string, // Can be username or email
   password: string
 ): Promise<AuthResponse> => {
-  const response = await apiRequest('/auth/login', 'POST', {
-    email,
+  const response = await apiRequest('/api/v1/auth/login', 'POST', {
+    identifier, // Backend should handle both username and email
     password
-  });
-  
-  // Store session information
-  await storeSession(response.token, response.expiresAt);
+  }, false);
+
+  // Store session
+  await sessionManager.storeSession(
+    response.token,
+    response.expires_at,
+    response.refresh_token
+  );
+
+  // Store user profile
+  await storeUserProfile(response.user);
   
   return response;
 };
 
 export const logoutUser = async (): Promise<void> => {
   try {
-    await apiRequest('/auth/logout', 'POST');
+    // Call logout endpoint to invalidate tokens on server
+    await apiRequest('/api/v1/auth/logout', 'POST');
+  } catch (error) {
+    console.error('Error calling logout endpoint:', error);
+    // Continue with local logout even if server call fails
   } finally {
-    // Always clear local session data
-    await clearSession();
-    // Optionally clear the stored profile
-    await AsyncStorage.removeItem(USER_PROFILE_KEY);
+    // Always clear local session
+    await sessionManager.clearSession();
   }
 };
 
-// User profile API
+export const refreshAuthToken = async (refreshToken: string): Promise<AuthResponse> => {
+    return await apiRequest('/api/v1/auth/refresh', 'POST', {
+        refresh_token: refreshToken
+    }, false);
+}
+
+// OAuth functions
+export const getOAuthProviders = async (): Promise<OAuthProvider[]> => {
+  return await apiRequest('/api/v1/auth/oauth/providers', 'GET', undefined, false);
+};
+
+export const oauthLogin = async (provider: string, token: string): Promise<AuthResponse> => {
+  const response = await apiRequest('/api/v1/auth/oauth/login', 'POST', {
+    provider,
+    token
+  }, false);
+
+  // Store session
+  await sessionManager.storeSession(
+    response.token,
+    response.expires_at,
+    response.refresh_token
+  );
+
+  // Store user profile
+  await storeUserProfile(response.user);
+
+  return response;
+};
+
+// Updated User profile API functions
 export const getCurrentUser = async (): Promise<UserProfile> => {
-  return apiRequest('/user/profile');
+  return await apiRequest('/api/v1/user/profile', 'GET');
 };
 
 export const getProfileCompletionStatus = async (): Promise<ProfileCompletionStatus> => {
-  return apiRequest('/user/profile/completion-status');
+  return await apiRequest('/api/v1/user/profile/completion-status', 'GET');
 };
 
-export const updateStylePreference = async (
-  stylePreference: 'option1' | 'option2'
+export const getOAuthAccounts = async (): Promise<any[]> => {
+  return await apiRequest('/api/v1/user/oauth-accounts', 'GET');
+};
+
+// NEW: User preference update functions
+export const updateUserProfile = async (
+  gender?: 'male' | 'female',
+  selected_size?: string,
+  first_name?: string,
+  last_name?: string
 ): Promise<UserProfile> => {
-  return apiRequest('/user/preferences/style', 'PUT', {
-    stylePreference
-  });
-};
-
-export const updateSelectedBrands = async (
-  selectedBrands: string[]
-): Promise<UserProfile> => {
-  return apiRequest('/user/preferences/brands', 'PUT', {
-    selectedBrands
-  });
-};
-
-export const updateFavoriteStyles = async (
-  favoriteStyles: string[]
-): Promise<UserProfile> => {
-  return apiRequest('/user/preferences/favorite-styles', 'PUT', {
-    favoriteStyles
-  });
-};
-
-// Product API
-export const getProducts = async (params?: Record<string, any>): Promise<{ results: Product[] }> => {
-  let query = '';
-  if (params) {
-    const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      queryParams.append(key, String(value));
-    });
-    query = `?${queryParams.toString()}`;
-  }
+  const updateData: any = {};
   
-  return apiRequest(`/products${query}`);
+  if (gender !== undefined) updateData.gender = gender;
+  if (selected_size !== undefined) updateData.selected_size = selected_size;
+  if (first_name !== undefined) updateData.first_name = first_name;
+  if (last_name !== undefined) updateData.last_name = last_name;
+
+  const response = await apiRequest('/api/v1/user/profile', 'PUT', updateData);
+  
+  // Update stored profile
+  await storeUserProfile(response);
+  
+  return response;
 };
 
-export const getProductDetails = async (id: number): Promise<Product> => {
-  return apiRequest(`/products/${id}`);
+export const updateUserBrands = async (brandIds: number[]): Promise<any> => {
+  const response = await apiRequest('/api/v1/user/brands', 'POST', {
+    brand_ids: brandIds
+  });
+  
+  // Refresh user profile to get updated data
+  const updatedProfile = await getCurrentUser();
+  await storeUserProfile(updatedProfile);
+  
+  return response;
 };
 
+export const updateUserStyles = async (styleIds: string[]): Promise<any> => {
+  const response = await apiRequest('/api/v1/user/styles', 'POST', {
+    style_ids: styleIds
+  });
+  
+  // Refresh user profile to get updated data
+  const updatedProfile = await getCurrentUser();
+  await storeUserProfile(updatedProfile);
+  
+  return response;
+};
+
+// NEW: Brand and Style API functions
 export const getBrands = async (): Promise<Brand[]> => {
-  return apiRequest('/products/brands');
+  return await apiRequest('/api/v1/brands', 'GET', undefined, false);
 };
 
 export const getStyles = async (): Promise<Style[]> => {
-  return apiRequest('/products/styles');
+  return await apiRequest('/api/v1/styles', 'GET', undefined, false);
 };
 
-// Recommendations API
-export const getRecommendations = async (): Promise<Recommendations> => {
-  return apiRequest('/recommendations');
+// Health check
+export const healthCheck = async (): Promise<any> => {
+  return await apiRequest('/health', 'GET', undefined, false);
 };
-
-// Simulated API functions (for development without backend)
-let SIMULATED_USER: UserProfile | null = null;
-
-// Simulation data - Brand names
-const BRAND_NAMES = [
-  'Adidas', 'Nike', 'Puma', 'Reebok', 'New Balance', 
-  'Converse', 'Vans', 'Under Armour', 'H&M', 'Zara', 
-  'Uniqlo', 'Mango', 'Lacoste', 'Tommy Hilfiger', 'Calvin Klein',
-  'Levi\'s', 'The North Face', 'Columbia', 'Gucci', 'Prada'
-];
-
-// Simulation data - Popular styles
-const POPULAR_STYLES = [
-  { id: 'casual', name: 'Повседневный', description: 'Комфортная одежда для ежедневной носки', image: 'https://example.com/casual.jpg' },
-  { id: 'formal', name: 'Деловой', description: 'Элегантная одежда для офиса и встреч', image: 'https://example.com/formal.jpg' },
-  { id: 'sport', name: 'Спортивный', description: 'Функциональная одежда для активного образа жизни', image: 'https://example.com/sport.jpg' },
-  { id: 'romantic', name: 'Романтичный', description: 'Женственные, изящные силуэты', image: 'https://example.com/romantic.jpg' },
-  { id: 'streetwear', name: 'Уличный', description: 'Современный городской стиль', image: 'https://example.com/streetwear.jpg' },
-  { id: 'vintage', name: 'Винтаж', description: 'Классические силуэты прошлых десятилетий', image: 'https://example.com/vintage.jpg' },
-  { id: 'minimalist', name: 'Минимализм', description: 'Простые, лаконичные силуэты и нейтральные цвета', image: 'https://example.com/minimalist.jpg' },
-  { id: 'bohemian', name: 'Богемный', description: 'Свободные силуэты и этнические мотивы', image: 'https://example.com/bohemian.jpg' }
-];
-
-// Simulation data - Mock products
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'Футболка базовая',
-    slug: 'basic-tshirt',
-    description: 'Комфортная базовая футболка из 100% хлопка',
-    price: '1990.00',
-    discount_price: null,
-    brand: 'Adidas',
-    category: {
-      id: 3,
-      name: 'Футболки',
-      slug: 't-shirts'
-    },
-    styles: ['casual', 'sport'],
-    images: [
-      {
-        id: 1,
-        image: 'https://example.com/products/tshirt1.jpg',
-        is_primary: true
-      }
-    ],
-    available_sizes: ['S', 'M', 'L', 'XL'],
-    in_stock: true
-  },
-  {
-    id: 2,
-    name: 'Джинсы классические',
-    slug: 'classic-jeans',
-    description: 'Классические джинсы прямого кроя',
-    price: '3990.00',
-    discount_price: null,
-    brand: 'Levi\'s',
-    category: {
-      id: 4,
-      name: 'Джинсы',
-      slug: 'jeans'
-    },
-    styles: ['casual', 'minimalist'],
-    images: [
-      {
-        id: 2,
-        image: 'https://example.com/products/jeans1.jpg',
-        is_primary: true
-      }
-    ],
-    available_sizes: ['30', '32', '34', '36'],
-    in_stock: true
-  },
-  {
-    id: 3,
-    name: 'Кроссовки беговые',
-    slug: 'running-shoes',
-    description: 'Легкие кроссовки для бега и повседневной носки',
-    price: '5990.00',
-    discount_price: '4990.00',
-    brand: 'Nike',
-    category: {
-      id: 5,
-      name: 'Обувь',
-      slug: 'footwear'
-    },
-    styles: ['sport', 'casual'],
-    images: [
-      {
-        id: 3,
-        image: 'https://example.com/products/shoes1.jpg',
-        is_primary: true
-      }
-    ],
-    available_sizes: ['40', '41', '42', '43', '44'],
-    in_stock: true
-  }
-];
-
-// Helper to simulate API response delay
-export const simulateApiResponse = <T>(data: T, delay = 500): Promise<T> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve(data);
-    }, delay);
-  });
-};
-
-// Check for existing user profile on app start
-export const initSimulatedUser = async () => {
-  // Try to load user from storage first
-  const storedUser = await retrieveUserProfile();
-  if (storedUser) {
-    SIMULATED_USER = storedUser;
-    console.log('Loaded user profile from storage:', SIMULATED_USER.name);
-  }
-};
-
-export const simulateRegister = async (
-  username: string,
-  email: string,
-  password: string
-): Promise<AuthResponse> => {
-  // Create a simulated user with incomplete profile
-  SIMULATED_USER = {
-    id: '1',
-    name: username,
-    email,
-    isProfileComplete: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  
-  // Store the user profile for persistence between app sessions
-  await storeUserProfile(SIMULATED_USER);
-  
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // Token expires in 7 days
-  
-  const response: AuthResponse = {
-    token: 'simulated-jwt-token',
-    expiresAt: expiresAt.toISOString(),
-    user: SIMULATED_USER
-  };
-  
-  // Store session information
-  await storeSession(response.token, response.expiresAt);
-  
-  return simulateApiResponse(response);
-};
-
-export const simulateLogin = async (
-  email: string,
-  password: string
-): Promise<AuthResponse> => {
-  // First check if we have a persisted user
-  const storedUser = await retrieveUserProfile();
-  
-  if (storedUser && storedUser.email === email) {
-    // Use the stored user profile
-    SIMULATED_USER = storedUser;
-    console.log('User found in storage, login successful');
-  } else {
-    // Create a simulated user if needed (for testing)
-    SIMULATED_USER = {
-      id: '1',
-      name: email.split('@')[0], // Use part of email as name
-      email,
-      isProfileComplete: false, // Simulate incomplete profile
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    // Store the new user profile
-    await storeUserProfile(SIMULATED_USER);
-  }
-  
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // Token expires in 7 days
-  
-  const response: AuthResponse = {
-    token: 'simulated-jwt-token',
-    expiresAt: expiresAt.toISOString(),
-    user: SIMULATED_USER
-  };
-  
-  // Store session information
-  await storeSession(response.token, response.expiresAt);
-  
-  return simulateApiResponse(response);
-};
-
-export const simulateLogoutUser = async (): Promise<void> => {
-    await clearSession();
-      // Optionally clear the stored profile
-    await AsyncStorage.removeItem(USER_PROFILE_KEY);
-  };
-
-export const simulateResetPassword = async (email: string): Promise<boolean> => {
-  // Simulate checking if the email exists in the system
-  const storedUser = await retrieveUserProfile();
-  
-  if (storedUser && storedUser.email === email) {
-    console.log(`Password reset initiated for email: ${email}`);
-    // In a real app, this would send a password reset email/code
-    return true;
-  }
-  
-  // For demo purposes, return true even if email doesn't exist
-  // In a real app, you might want to indicate that the email wasn't found
-  console.log(`Password reset requested for unknown email: ${email}`);
-  return true;
-};
-
-export const simulateGetCurrentUser = async (): Promise<UserProfile> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  return simulateApiResponse(SIMULATED_USER);
-};
-
-export const simulateGetProfileCompletionStatus = async (): Promise<ProfileCompletionStatus> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  const missingFields: string[] = [];
-  const requiredScreens: ('confirmation' | 'brands' | 'styles')[] = [];
-  
-  if (!SIMULATED_USER.stylePreference) {
-    missingFields.push('stylePreference');
-    requiredScreens.push('confirmation');
-  }
-  
-  if (!SIMULATED_USER.selectedBrands || SIMULATED_USER.selectedBrands.length === 0) {
-    missingFields.push('selectedBrands');
-    requiredScreens.push('brands');
-  }
-  
-  if (!SIMULATED_USER.favoriteStyles || SIMULATED_USER.favoriteStyles.length === 0) {
-    missingFields.push('favoriteStyles');
-    requiredScreens.push('styles');
-  }
-  
-  const isComplete = missingFields.length === 0;
-  SIMULATED_USER.isProfileComplete = isComplete;
-  
-  // Update stored user profile
-  await storeUserProfile(SIMULATED_USER);
-  
-  return simulateApiResponse({
-    isComplete,
-    missingFields,
-    requiredScreens
-  });
-};
-
-export const simulateUpdateStylePreference = async (
-  stylePreference: 'option1' | 'option2'
-): Promise<UserProfile> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  SIMULATED_USER = {
-    ...SIMULATED_USER,
-    stylePreference,
-    updatedAt: new Date().toISOString()
-  };
-  
-  // Update stored user profile
-  await storeUserProfile(SIMULATED_USER);
-  
-  return simulateApiResponse(SIMULATED_USER);
-};
-
-export const simulateUpdateSelectedBrands = async (
-  selectedBrands: string[]
-): Promise<UserProfile> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  SIMULATED_USER = {
-    ...SIMULATED_USER,
-    selectedBrands,
-    updatedAt: new Date().toISOString()
-  };
-  
-  // Update stored user profile
-  await storeUserProfile(SIMULATED_USER);
-  
-  return simulateApiResponse(SIMULATED_USER);
-};
-
-export const simulateUpdateFavoriteStyles = async (
-  favoriteStyles: string[]
-): Promise<UserProfile> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  SIMULATED_USER = {
-    ...SIMULATED_USER,
-    favoriteStyles,
-    isProfileComplete: true, // Mark profile as complete after setting favorite styles
-    updatedAt: new Date().toISOString()
-  };
-  
-  // Update stored user profile
-  await storeUserProfile(SIMULATED_USER);
-  
-  return simulateApiResponse(SIMULATED_USER);
-};
-
-// Product simulation functions
-export const simulateGetProducts = async (params?: Record<string, any>): Promise<{ results: Product[] }> => {
-  // Clone the products to avoid modifying the original
-  let products = [...MOCK_PRODUCTS];
-  
-  // Apply filters if provided
-  if (params) {
-    if (params.brand) {
-      products = products.filter(product => product.brand.toLowerCase() === params.brand.toLowerCase());
-    }
-    
-    if (params.style) {
-      products = products.filter(product => product.styles.includes(params.style));
-    }
-    
-    if (params.search) {
-      const searchTermLower = params.search.toLowerCase();
-      products = products.filter(product => 
-        product.name.toLowerCase().includes(searchTermLower) || 
-        product.description.toLowerCase().includes(searchTermLower)
-      );
-    }
-    
-    // Sort products
-    if (params.sort) {
-      if (params.sort === 'price_asc') {
-        products.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-      } else if (params.sort === 'price_desc') {
-        products.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
-      }
-      // Add more sorting options as needed
-    }
-  }
-  
-  return simulateApiResponse({ results: products });
-};
-
-export const simulateGetProductDetails = async (id: number): Promise<Product> => {
-  const product = MOCK_PRODUCTS.find(p => p.id === id);
-  
-  if (!product) {
-    throw new ApiError('Product not found', 404);
-  }
-  
-  return simulateApiResponse(product);
-};
-
-export const simulateGetBrands = async (): Promise<Brand[]> => {
-  const brands: Brand[] = BRAND_NAMES.map((name, index) => ({
-    id: index + 1,
-    name,
-    slug: name.toLowerCase().replace(/\s+/g, '-'),
-    logo: `https://example.com/brands/${name.toLowerCase().replace(/\s+/g, '-')}.png`,
-    description: `${name} - описание бренда`
-  }));
-  
-  return simulateApiResponse(brands);
-};
-
-export const simulateGetStyles = async (): Promise<Style[]> => {
-  return simulateApiResponse(POPULAR_STYLES);
-};
-
-// Recommendation simulation functions
-export const simulateGetRecommendations = async (): Promise<Recommendations> => {
-  if (!SIMULATED_USER) {
-    // Try to load from storage first
-    const storedUser = await retrieveUserProfile();
-    
-    if (storedUser) {
-      SIMULATED_USER = storedUser;
-    } else {
-      throw new ApiError('Unauthorized', 401);
-    }
-  }
-  
-  // Create personalized recommendations based on user preferences
-  let styleBasedProducts: Product[] = [];
-  let brandBasedProducts: Product[] = [];
-  
-  // Style-based recommendations
-  if (SIMULATED_USER.favoriteStyles && SIMULATED_USER.favoriteStyles.length > 0) {
-    styleBasedProducts = MOCK_PRODUCTS.filter(product => 
-      product.styles.some(style => SIMULATED_USER!.favoriteStyles!.includes(style))
-    );
-  } else {
-    // Fallback to some default products
-    styleBasedProducts = MOCK_PRODUCTS.slice(0, 2);
-  }
-  
-  // Brand-based recommendations
-  if (SIMULATED_USER.selectedBrands && SIMULATED_USER.selectedBrands.length > 0) {
-    brandBasedProducts = MOCK_PRODUCTS.filter(product => 
-      SIMULATED_USER!.selectedBrands!.includes(product.brand)
-    );
-  } else {
-    // Fallback to some default products
-    brandBasedProducts = MOCK_PRODUCTS.slice(1, 3);
-  }
-  
-  // Create shuffled copies for trending and new arrivals
-  const shuffled = [...MOCK_PRODUCTS].sort(() => 0.5 - Math.random());
-  
-  return simulateApiResponse({
-    based_on_style: styleBasedProducts,
-    based_on_brands: brandBasedProducts,
-    trending_now: shuffled.slice(0, 2),
-    new_arrivals: shuffled.slice(2, 4)
-  });
-};
-
-// Initialize simulated user from storage on module load
-initSimulatedUser(); 

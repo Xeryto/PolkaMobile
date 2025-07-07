@@ -133,8 +133,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignup, onBack }) => {
     setIsLoading(true);
     
     try {
-      // Use the simulated API for development
-      const response = await api.simulateRegister(username, email, password);
+      // Use the new API for registration
+      const response = await api.registerUser(username, email, password);
       
       setIsLoading(false);
       onSignup(); // Notify parent component

@@ -94,12 +94,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onForgotPass
     setIsLoading(true);
     
     try {
-      // Use the simulated API for development
-      // Determine if input is email or username
-      const isEmail = usernameOrEmail.includes('@');
-      const email = isEmail ? usernameOrEmail : `${usernameOrEmail}@example.com`;
-      
-      const response = await api.simulateLogin(email, password);
+      // Use the new API for login with username/email support
+      const response = await api.loginUser(usernameOrEmail, password);
       
       setIsLoading(false);
       onLogin(); // Notify parent component

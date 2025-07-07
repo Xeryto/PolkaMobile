@@ -31,25 +31,34 @@ const { width, height } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width, height) * 0.275;
 
 interface BrandSearchScreenProps {
-  onComplete: (selectedBrands: string[]) => void;
+  onComplete: (selectedBrands: number[]) => void;
   onBack?: () => void; // Optional back handler
-  initialBrands?: string[]; // Initial selected brands
+  initialBrands?: number[]; // Initial selected brands
 }
 
 // Sample popular brands based on style preference
 const getPopularBrands = () => {
   return [
-    "Армани", "Бурберри", "Гуччи", "Хьюго Босс", 
-    "Ральф Лорен", "Версаче", "Прада", "Кельвин Кляйн", 
-    "Балман", "Фенди", "Том Форд", "Шанель"
+    { id: 1, name: "Армани" },
+    { id: 2, name: "Бурберри" },
+    { id: 3, name: "Гуччи" },
+    { id: 4, name: "Хьюго Босс" },
+    { id: 5, name: "Ральф Лорен" },
+    { id: 6, name: "Версаче" },
+    { id: 7, name: "Прада" },
+    { id: 8, name: "Кельвин Кляйн" },
+    { id: 9, name: "Балман" },
+    { id: 10, name: "Фенди" },
+    { id: 11, name: "Том Форд" },
+    { id: 12, name: "Шанель" }
   ];
 };
 
 const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBack, initialBrands = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(initialBrands);
-  const [popularBrands, setPopularBrands] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<number[]>(initialBrands);
+  const [popularBrands, setPopularBrands] = useState<{id: number, name: string}[]>([]);
   const [visibleBubblesHeight, setVisibleBubblesHeight] = useState(0);
   
   // Animation values
@@ -96,7 +105,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
     setIsSearchActive(true);
   };
   
-  const handleBrandSelect = (brand: string) => {
+  const handleBrandSelect = (brand: number) => {
     setSelectedBrands(prev => {
       // If brand is already selected, remove it
       if (prev.includes(brand)) {
@@ -128,41 +137,46 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
   // Filter brands based on search query
   const filteredBrands = searchQuery.length > 0
     ? popularBrands.filter(brand => 
-        brand.toLowerCase().includes(searchQuery.toLowerCase())
+        brand.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : popularBrands;
   
   // Render a selected brand bubble
-  const renderBrandBubble = (brand: string, index: number) => (
-    <View key={`bubble-${brand}`} style={{flexDirection: 'row', alignItems: 'center', marginRight: 11, marginBottom: 5}}>
-      <View style={styles.brandBubble}>
-        <Text style={styles.brandBubbleText}>{brand}</Text>
+  const renderBrandBubble = (brandId: number, index: number) => {
+    const brand = popularBrands.find(b => b.id === brandId);
+    if (!brand) return null;
+    
+    return (
+      <View key={`bubble-${brandId}`} style={{flexDirection: 'row', alignItems: 'center', marginRight: 11, marginBottom: 5}}>
+        <View style={styles.brandBubble}>
+          <Text style={styles.brandBubbleText}>{brand.name}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.removeBubbleIcon}
+          onPress={() => handleBrandSelect(brandId)}
+        >
+          <Cancel width={18} height={18} />
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        style={styles.removeBubbleIcon}
-        onPress={() => handleBrandSelect(brand)}
-      >
-        <Cancel width={18} height={18} />
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
   
-  const renderBrandItem = ({ item }: { item: string }) => (
+  const renderBrandItem = ({ item }: { item: {id: number, name: string} }) => (
     <Pressable
       style={({pressed}) => [
         styles.brandItem,
         pressed && styles.pressedItem
       ]}
-      onPress={() => handleBrandSelect(item)}
+      onPress={() => handleBrandSelect(item.id)}
       android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
     >
       <View style={styles.brandItemContent}>
         <Text style={
           styles.brandText}>
-          {item}
+          {item.name}
         </Text>
         
-        {selectedBrands.includes(item) && (
+        {selectedBrands.includes(item.id) && (
           <View style={styles.tickContainer}>
             <Tick width={20} height={20} />
           </View>
@@ -260,7 +274,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
               <FlatList
                 data={filteredBrands}
                 renderItem={renderBrandItem}
-                keyExtractor={(item) => item}
+                keyExtractor={(item) => item.id.toString()}
                 numColumns={1}
                 contentContainerStyle={styles.brandsList}
                 showsVerticalScrollIndicator={false}
@@ -284,7 +298,7 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
                   style={{borderRadius: 25}}
                 >
                   <View style={styles.bubblesRow}>
-                    {selectedBrands.map(renderBrandBubble)}
+                    {selectedBrands.map(brandId => renderBrandBubble(brandId, 0))}
                   </View>
                 </ScrollView>
               </Animated.View>

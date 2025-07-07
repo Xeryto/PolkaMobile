@@ -23,7 +23,7 @@ import ForgotPasswordScreen from './ForgotPasswordScreen';
 
 interface WelcomeScreenProps {
 	onLogin: () => void;
-	onRegister: (stylePreference?: 'option1' | 'option2', selectedBrands?: string[], favoriteStyles?: string[]) => void;
+	onRegister: (gender?: 'male' | 'female', selectedBrands?: number[], favoriteStyles?: string[]) => void;
 }
 
 const { width, height } = Dimensions.get('window');
@@ -36,8 +36,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
 	const [showBrandSearchScreen, setShowBrandSearchScreen] = useState(false);
 	const [showStylesSelectionScreen, setShowStylesSelectionScreen] = useState(false);
-	const [selectedOption, setSelectedOption] = useState<'option1' | 'option2'>('option1');
-	const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+	const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
+	const [selectedBrands, setSelectedBrands] = useState<number[]>([]);
 	const [isReady, setIsReady] = useState(false);
 	const [isSpinning, setIsSpinning] = useState(false);
 	
@@ -136,16 +136,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	};
 	
 	// Handle confirmation screen completion and move to brand search
-	const handleConfirmationComplete = (choice: 'option1' | 'option2') => {
+	const handleConfirmationComplete = (choice: 'male' | 'female') => {
 		console.log(`User selected option: ${choice}`);
 		// Save the selected option and show brand search screen
-		setSelectedOption(choice);
+		setSelectedGender(choice);
 		setShowConfirmationScreen(false);
 		setShowBrandSearchScreen(true);
 	};
 	
 	// Handle brand search completion and show styles selection
-	const handleBrandSearchComplete = (brands: string[]) => {
+	const handleBrandSearchComplete = (brands: number[]) => {
 		console.log(`User selected brands: ${brands.join(', ')}`);
 		// Save the selected brands and show styles selection screen
 		setSelectedBrands(brands);
@@ -157,7 +157,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	const handleStylesSelectionComplete = (styles: string[]) => {
 		console.log(`User selected styles: ${styles.join(', ')}`);
 		// Pass style preference, selected brands, and favorite styles to onRegister
-		onRegister(selectedOption, selectedBrands, styles);
+		onRegister(selectedGender, selectedBrands, styles);
 	};
 	
 	// If showing login screen
@@ -220,6 +220,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onLogin, onRegister }) =>
 	if (showStylesSelectionScreen) {
 		return (
 			<StylesSelectionScreen 
+				gender={selectedGender}
 				onComplete={handleStylesSelectionComplete}
 				onBack={() => {
 					setShowStylesSelectionScreen(false);

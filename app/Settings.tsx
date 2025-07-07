@@ -34,6 +34,7 @@ import * as Haptics from 'expo-haptics';
 import Tick from './assets/Tick';
 import { Canvas, RoundedRect, Shadow } from '@shopify/react-native-skia';
 import {AnimatedCircularProgress} from 'react-native-circular-progress';
+import * as api from './services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,7 +43,6 @@ interface SimpleNavigation {
   navigate: (screen: string, params?: any) => void;
   goBack: () => void;
 }
-
 
 interface SettingsProps {
   navigation: SimpleNavigation;
@@ -92,6 +92,10 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [showThankYou, setShowThankYou] = useState(false);
   const [isSending, setIsSending] = useState(false);
   
+  // NEW: User profile state
+  const [userProfile, setUserProfile] = useState<api.UserProfile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  
   // Animation values
   const sizeContainerWidth = useRef(new RNAnimated.Value(height*0.1)).current;
   const sizeTextOpacity = useRef(new RNAnimated.Value(0)).current;
@@ -107,6 +111,127 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
 
   const sizeOptions = ['XS', 'S', 'M', 'L', 'XL'];
 
+  // Load user profile on component mount
+  useEffect(() => {
+    loadUserProfile();
+    loadBrands();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      setIsLoadingProfile(true);
+      const profile = await api.getCurrentUser();
+      setUserProfile(profile);
+      
+      // Set selected size from profile
+      if (profile.selected_size) {
+        setSelectedSize(profile.selected_size);
+      }
+      
+      // Set selected brands from profile
+      if (profile.favorite_brands) {
+        setSelectedBrands(profile.favorite_brands.map(brand => brand.name));
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  // Load brands from API
+  const loadBrands = async () => {
+    try {
+      const brands = await api.getBrands();
+      setPopularBrands(brands.map(brand => brand.name));
+    } catch (error) {
+      console.error('Error loading brands:', error);
+      // Show user-friendly error message
+      Alert.alert(
+        'Ошибка загрузки',
+        'Не удалось загрузить список брендов. Попробуйте позже.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Update user size preference
+  const updateUserSize = async (size: string) => {
+    try {
+      await api.updateUserProfile(undefined, size);
+      setSelectedSize(size);
+    } catch (error) {
+      console.error('Error updating user size:', error);
+    }
+  };
+
+  // Update user favorite brands
+  const updateUserBrands = async (brandIds: number[]) => {
+    try {
+      await api.updateUserBrands(brandIds);
+      // Update local state with brand names
+      const allBrands = await api.getBrands();
+      const selectedBrandNames = allBrands
+        .filter(brand => brandIds.includes(brand.id))
+        .map(brand => brand.name);
+      setSelectedBrands(selectedBrandNames);
+    } catch (error) {
+      console.error('Error updating user brands:', error);
+      Alert.alert(
+        'Ошибка обновления',
+        'Не удалось обновить любимые бренды. Попробуйте позже.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Handle brand selection in wall section
+  const handleBrandSelect = async (brandName: string) => {
+    try {
+      // Get all brands to find the brand ID
+      const allBrands = await api.getBrands();
+      const brand = allBrands.find(b => b.name === brandName);
+      
+      if (!brand) {
+        console.error('Brand not found:', brandName);
+        Alert.alert('Ошибка', 'Бренд не найден.');
+        return;
+      }
+
+      const currentBrandIds = userProfile?.favorite_brands.map(b => b.id) || [];
+      
+      let newBrandIds: number[];
+      if (currentBrandIds.includes(brand.id)) {
+        // Remove brand
+        newBrandIds = currentBrandIds.filter(id => id !== brand.id);
+      } else {
+        // Add brand
+        newBrandIds = [...currentBrandIds, brand.id];
+      }
+      
+      // Update through API
+      await updateUserBrands(newBrandIds);
+      
+      // Update local user profile
+      if (userProfile) {
+        const updatedProfile = { ...userProfile };
+        if (currentBrandIds.includes(brand.id)) {
+          updatedProfile.favorite_brands = updatedProfile.favorite_brands.filter(b => b.id !== brand.id);
+        } else {
+          updatedProfile.favorite_brands = [...updatedProfile.favorite_brands, brand];
+        }
+        setUserProfile(updatedProfile);
+      }
+    } catch (error) {
+      console.error('Error selecting brand:', error);
+      Alert.alert(
+        'Ошибка',
+        'Не удалось обновить выбор бренда. Попробуйте позже.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   // Filtered brands based on search query
   const filteredBrands = searchQuery.length > 0
     ? popularBrands.filter(brand => 
@@ -119,14 +244,6 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     transform: [{ translateY: searchResultsTranslateY }],
     opacity: searchResultsOpacity
   };
-
-  useEffect(() => {
-    setPopularBrands([
-      "Армани", "Бурберри", "Гуччи", "Хьюго Босс", 
-      "Ральф Лорен", "Версаче", "Прада", "Кельвин Кляйн", 
-      "Балман", "Фенди", "Том Форд", "Шанель"
-    ]);
-  }, []);
 
   useEffect(() => {
     if (selectedBrands.length > 0) {
@@ -171,6 +288,8 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const handleSizeSelect = (size: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedSize(size);
+    updateUserSize(size); // Update the user's size preference in the API
+    
     RNAnimated.parallel([
       RNAnimated.timing(sizeContainerWidth, {
         toValue: 45,
@@ -233,16 +352,6 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     ]).start();
   };
 
-  const handleBrandSelect = (brand: string) => {
-    setSelectedBrands(prev => {
-      if (prev.includes(brand)) {
-        return prev.filter(b => b !== brand);
-      } else {
-        return [...prev, brand];
-      }
-    });
-  };
-
   const handleSupportSend = async () => {
     if (!supportMessage.trim()) return;
     
@@ -302,29 +411,32 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     </Animated.View>
   );
 
-  const renderBrandItem = ({ item }: { item: string }) => (
-    <Pressable
-      style={({pressed}) => [
-        styles.brandItem,
-        pressed && styles.pressedItem
-      ]}
-      onPress={() => handleBrandSelect(item)}
-      android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
-    >
-      <View style={styles.brandItemContent}>
-        <Text style={
-          styles.brandText}>
-          {item}
-        </Text>
-        
-        {selectedBrands.includes(item) && (
-          <View style={styles.tickContainer}>
-            <Tick width={20} height={20} />
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
+  const renderBrandItem = ({ item }: { item: string }) => {
+    const isSelected = userProfile?.favorite_brands?.some(brand => brand.name === item) || false;
+    
+    return (
+      <Pressable
+        style={({pressed}) => [
+          styles.brandItem,
+          pressed && styles.pressedItem
+        ]}
+        onPress={() => handleBrandSelect(item)}
+        android_ripple={{color: 'rgba(205, 166, 122, 0.3)', borderless: false}}
+      >
+        <View style={styles.brandItemContent}>
+          <Text style={styles.brandText}>
+            {item}
+          </Text>
+          
+          {isSelected && (
+            <View style={styles.tickContainer}>
+              <Tick width={20} height={20} />
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
 
   const renderBrandSearch = () => (
     <View style={styles.searchAndResultsContainer}>
@@ -437,7 +549,14 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       {showBrandSearch ? renderBrandSearch() : (
         <>
           <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.profileSection}>
-            <Text style={styles.profileName}>Иван Иванов</Text>
+            <Text style={styles.profileName}>
+              {isLoadingProfile 
+                ? 'Загрузка...' 
+                : userProfile 
+                  ? userProfile.username
+                  : 'Пользователь'
+              }
+            </Text>
             <View style={styles.profileImageContainer}>
             <Image 
               source={require('./assets/Vision.png')} 

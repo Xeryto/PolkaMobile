@@ -43,3 +43,6 @@ Favorites2.tsx
 
 #backend
 backend/
+
+# Environment variables
+.env

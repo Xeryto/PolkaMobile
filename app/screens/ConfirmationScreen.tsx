@@ -26,17 +26,17 @@ import BackIcon from '../assets/Back.svg';
 const { width, height } = Dimensions.get('window');
 
 interface ConfirmationScreenProps {
-  onComplete: (choice: 'option1' | 'option2') => void;
+  onComplete: (choice: 'male' | 'female') => void;
   onBack?: () => void; // Optional back handler
 }
 
 const LOGO_SIZE = Math.min(width, height) * 0.275; // 25% of the smallest dimension
 
 const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onBack }) => {
-  const [selectedOption, setSelectedOption] = useState<'option1' | 'option2' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'male' | 'female' | null>(null);
   
   // Handle option selection with fade-out animation
-  const handleOptionSelect = (option: 'option1' | 'option2') => {
+  const handleOptionSelect = (option: 'male' | 'female') => {
     setSelectedOption(option);
     
     // Delay onComplete call to allow animation to complete
@@ -91,16 +91,16 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
                   <Pressable
                     style={({pressed}) => [
                       styles.optionButton,
-                      selectedOption === 'option1' && styles.selectedButtonM,
+                      selectedOption === 'male' && styles.selectedButtonM,
                       pressed && styles.buttonPressed,
                       {backgroundColor: '#E0D6CC'}
                     ]}
-                    onPress={() => handleOptionSelect('option1')}
+                    onPress={() => handleOptionSelect('male')}
                     android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
                   >
                     <Text style={[
                       styles.optionButtonTextM,
-                      selectedOption === 'option1' && styles.selectedButtonTextM
+                      selectedOption === 'male' && styles.selectedButtonTextM
                     ]}>
                       М
                     </Text>
@@ -111,16 +111,16 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
                   <Pressable
                     style={({pressed}) => [
                       styles.optionButton,
-                      selectedOption === 'option2' && styles.selectedButtonF,
+                      selectedOption === 'female' && styles.selectedButtonF,
                       pressed && styles.buttonPressed,
                       {backgroundColor: '#9A7859'}
                     ]}
-                    onPress={() => handleOptionSelect('option2')}
+                    onPress={() => handleOptionSelect('female')}
                     android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
                   >
                     <Text style={[
                       styles.optionButtonTextF,
-                      selectedOption === 'option2' && styles.selectedButtonTextF
+                      selectedOption === 'female' && styles.selectedButtonTextF
                     ]}>
                       Ж
                     </Text>

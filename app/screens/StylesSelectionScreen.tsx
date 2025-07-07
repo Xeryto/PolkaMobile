@@ -75,16 +75,19 @@ const STYLE_OPTIONS: StyleOption[] = [
 ];
 
 interface StylesSelectionScreenProps {
+  gender: 'male' | 'female';
   onComplete: (selectedStyles: string[]) => void;
   onBack?: () => void; // Optional back handler
 }
 
-const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ onComplete, onBack }) => {
+const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ gender, onComplete, onBack }) => {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [showScrollHint, setShowScrollHint] = useState(true);
   
   // Filter style options based on gender preference if needed
-  const styleOptions = STYLE_OPTIONS;
+  const styleOptions = gender === 'female' 
+    ? STYLE_OPTIONS 
+    : STYLE_OPTIONS.filter(style => !['romantic', 'bohemian'].includes(style.id));
   
   const handleStyleSelect = (id: string) => {
     setSelectedStyles(prev => {
