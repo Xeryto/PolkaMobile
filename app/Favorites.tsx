@@ -16,7 +16,8 @@ import {
   ListRenderItem,
   ListRenderItemInfo,
   FlexAlignType,
-  FlexStyle
+  FlexStyle,
+  Alert
 } from 'react-native';
 import Animated, { 
   FadeIn, 
@@ -37,6 +38,8 @@ import CancelThickIcon from './assets/Cancel.svg';
 import PlusIcon from './assets/PlusBlack.svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import * as api from './services/api';
+
 // Define a simpler navigation type that our custom navigation can satisfy
 interface SimpleNavigation {
   navigate: (screen: string, params?: any) => void;
@@ -56,22 +59,25 @@ interface FavoriteItem {
   image: any;
 }
 
-// New interface for friend items without price
+// Updated interface for friend items to match API response
 interface FriendItem {
-  id: number;
-  name: string;
-  image: any;
+  id: string;
   username: string;
-  status: 'friend' | 'request_received' | 'request_sent' | 'not_friend'; // Added status field
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  status: 'friend' | 'request_received' | 'request_sent' | 'not_friend';
+  requestId?: string; // For friend requests
 }
 
 // Interface for friend request items
 interface FriendRequestItem {
-  id: number;
-  name: string;
-  image: any;
+  id: string;
   username: string;
-  requestId: number; // Unique ID for the request
+  avatar_url?: string | null;
+  requestId: string;
+  status: 'pending' | 'accepted' | 'rejected';
 }
 
 // Interface for recommended items for friends
@@ -179,46 +185,16 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const [isReady, setIsReady] = useState(false); // Control initial render
   const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [customRecommendations, setCustomRecommendations] = useState<{[key: number]: RecommendedItem[]}>({});
+  const [customRecommendations, setCustomRecommendations] = useState<{[key: string]: RecommendedItem[]}>({});
 
-  const [friendItems, setFriendItems] = useState<FriendItem[]>([
-    { 
-      id: 5, 
-      name: 'FRIEND ITEM 1', 
-      image: require('./assets/Vision2.png'),
-      username: 'friend1',
-      status: 'friend'
-    },
-    { 
-      id: 6, 
-      name: 'FRIEND ITEM 2', 
-      image: require('./assets/Vision.png'),
-      username: 'friend2',
-      status: 'request_received'
-    },
-    { 
-      id: 7, 
-      name: 'FRIEND ITEM 3', 
-      image: require('./assets/Vision2.png'),
-      username: 'friend3',
-      status: 'friend'
-    },
-    { 
-      id: 8,
-      name: 'FRIEND ITEM 4', 
-      image: require('./assets/Vision.png'),
-      username: 'friend4',
-      status: 'friend'
-    },
-    // TEST: Add a request_sent friend
-    {
-      id: 15,
-      name: 'REQUEST SENT MAIN',
-      image: require('./assets/Vision2.png'),
-      username: 'reqsentmain',
-      status: 'request_sent'
-    },
-  ]);
+  // Friend data state
+  const [friendItems, setFriendItems] = useState<FriendItem[]>([]);
+  const [sentRequests, setSentRequests] = useState<api.FriendRequest[]>([]);
+  const [receivedRequests, setReceivedRequests] = useState<api.FriendRequest[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(true);
+  const [searchResults, setSearchResults] = useState<FriendItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const [mainPendingRemoval, setMainPendingRemoval] = useState<FriendItem | null>(null);
   const [mainShowConfirmDialog, setMainShowConfirmDialog] = useState(false);
   const [searchPendingRemoval, setSearchPendingRemoval] = useState<FriendItem | null>(null);
@@ -231,7 +207,69 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   
   // Animation value for press animation
   const pressAnimationScale = useSharedValue(1);
-  
+
+  // Load friends and requests on component mount
+  useEffect(() => {
+    loadFriendsData();
+  }, []);
+
+  const loadFriendsData = async () => {
+    try {
+      setIsLoadingFriends(true);
+      
+      // Load friends, sent requests, and received requests in parallel
+      const [friends, sent, received] = await Promise.all([
+        api.getFriends(),
+        api.getSentFriendRequests(),
+        api.getReceivedFriendRequests()
+      ]);
+
+      console.log('API Response - Friends:', friends);
+      console.log('API Response - Sent Requests:', sent);
+      console.log('API Response - Received Requests:', received);
+
+      // Convert API friends to FriendItem format
+      const friendsList: FriendItem[] = friends.map(friend => ({
+        ...friend,
+        status: 'friend' as const
+      }));
+
+      // Convert sent requests to FriendItem format
+      const sentRequestsList: FriendItem[] = sent
+        .filter(request => request.status === 'pending')
+        .map(request => ({
+          id: request.recipient?.id || '',
+          username: request.recipient?.username || '',
+          email: '',
+          status: 'request_sent' as const,
+          requestId: request.id
+        }));
+
+      // Convert received requests to FriendItem format
+      const receivedRequestsList: FriendItem[] = received
+        .filter(request => request.status === 'pending')
+        .map(request => ({
+          id: request.sender?.id || '',
+          username: request.sender?.username || '',
+          email: '',
+          status: 'request_received' as const,
+          requestId: request.id
+        }));
+
+      const allFriendItems = [...friendsList, ...sentRequestsList, ...receivedRequestsList];
+      console.log('Processed Friend Items:', allFriendItems);
+
+      setFriendItems(allFriendItems);
+      setSentRequests(sent);
+      setReceivedRequests(received);
+    } catch (error) {
+      console.error('Error loading friends data:', error);
+      Alert.alert('Ошибка', 'Не удалось загрузить список друзей');
+    } finally {
+      setIsLoadingFriends(false);
+    }
+  };
+
   // Sample data for saved items and friend items
   const savedItems: FavoriteItem[] = [
     { 
@@ -261,42 +299,18 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   ];
 
   // Sample recommended items for friends
-  const recommendedItems: { [key: number]: RecommendedItem[] } = {
-    5: [
+  const recommendedItems: { [key: string]: RecommendedItem[] } = {
+    'friend1': [
       { id: 101, name: 'Для друга 1 - Рек. 1', price: '15 000 р', image: require('./assets/Vision.png') },
       { id: 102, name: 'Для друга 1 - Рек. 2', price: '20 000 р', image: require('./assets/Vision2.png') },
       { id: 103, name: 'Для друга 1 - Рек. 3', price: '18 000 р', image: require('./assets/Vision.png') },
       { id: 104, name: 'Для друга 1 - Рек. 4', price: '22 000 р', image: require('./assets/Vision2.png') },
     ],
-    6: [
+    'friend2': [
       { id: 201, name: 'Для друга 2 - Рек. 1', price: '25 000 р', image: require('./assets/Vision2.png') },
       { id: 202, name: 'Для друга 2 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
       { id: 203, name: 'Для друга 2 - Рек. 3', price: '21 000 р', image: require('./assets/Vision2.png') },
       { id: 204, name: 'Для друга 2 - Рек. 4', price: '17 000 р', image: require('./assets/Vision.png') },
-    ],
-    7: [
-      { id: 301, name: 'Для друга 3 - Рек. 1', price: '23 000 р', image: require('./assets/Vision.png') },
-      { id: 302, name: 'Для друга 3 - Рек. 2', price: '28 000 р', image: require('./assets/Vision2.png') },
-      { id: 303, name: 'Для друга 3 - Рек. 3', price: '16 000 р', image: require('./assets/Vision.png') },
-      { id: 304, name: 'Для друга 3 - Рек. 4', price: '24 000 р', image: require('./assets/Vision2.png') },
-    ],
-    8: [
-      { id: 401, name: 'Для друга 4 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
-      { id: 402, name: 'Для друга 4 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
-      { id: 403, name: 'Для друга 4 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
-      { id: 404, name: 'Для друга 4 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
-    ],
-    9: [
-      { id: 501, name: 'Для друга 5 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
-      { id: 502, name: 'Для друга 5 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
-      { id: 503, name: 'Для друга 5 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
-      { id: 504, name: 'Для друга 5 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
-    ],
-    10: [
-      { id: 601, name: 'Для друга 6 - Рек. 1', price: '26 000 р', image: require('./assets/Vision2.png') },
-      { id: 602, name: 'Для друга 6 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
-      { id: 603, name: 'Для друга 6 - Рек. 3', price: '22 000 р', image: require('./assets/Vision2.png') },
-      { id: 604, name: 'Для друга 6 - Рек. 4', price: '27 000 р', image: require('./assets/Vision.png') },
     ],
   };
   
@@ -404,8 +418,35 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   };
 
   // Handle search text change
-  const handleSearch = (text: string) => {
+  const handleSearch = async (text: string) => {
     setSearchQuery(text);
+    
+    if (text.length >= 2) {
+      setIsSearching(true);
+      try {
+        // Use real API to search for users
+        const searchResults = await api.searchUsers(text);
+        
+        // Convert search results to FriendItem format with real friend_status
+        const searchUsersList: FriendItem[] = searchResults.map(user => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          avatar_url: user.avatar_url,
+          status: user.friend_status || 'not_friend'
+        }));
+        
+        setSearchResults(searchUsersList);
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setSearchResults([]);
+        Alert.alert('Ошибка', 'Не удалось выполнить поиск пользователей');
+      } finally {
+        setIsSearching(false);
+      }
+    } else {
+      setSearchResults([]);
+    }
   };
 
   // Toggle search mode
@@ -413,12 +454,13 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     setIsSearchActive(!isSearchActive);
     if (!isSearchActive) {
       setSearchQuery('');
+      setSearchResults([]); // Clear search results when exiting search
     }
   };
 
   // Handle friend selection
   const handleFriendSelect = (friend: FriendItem) => {
-    console.log(`Friend selected: ${friend.name}`);
+    console.log(`Friend selected: ${friend.username}`);
     setSelectedFriend(friend);
   };
 
@@ -432,7 +474,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     // Only proceed if a friend is selected
     if (!selectedFriend) return;
 
-    console.log('Regenerating recommendations for', selectedFriend.name);
+    console.log('Regenerating recommendations for', selectedFriend.username);
     
     // Show loading indicator
     setIsRegenerating(true);
@@ -513,30 +555,121 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }, delay);
   };
 
+  // Real API functions for friend actions
+  const acceptFriendRequest = async (requestId: string) => {
+    console.log(`Accepting friend request ${requestId}...`);
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      await api.acceptFriendRequest(requestId);
+      
+      // Reload friends data to reflect changes
+      await loadFriendsData();
+      
+      Alert.alert('Успех', 'Заявка в друзья принята');
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ошибка', 'Не удалось принять заявку в друзья');
+    }
+  };
+  
+  const rejectFriendRequest = async (requestId: string) => {
+    console.log(`Rejecting friend request ${requestId}...`);
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
+      await api.rejectFriendRequest(requestId);
+      
+      // Reload friends data to reflect changes
+      await loadFriendsData();
+      
+      Alert.alert('Успех', 'Заявка в друзья отклонена');
+    } catch (error) {
+      console.error('Error rejecting friend request:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ошибка', 'Не удалось отклонить заявку в друзья');
+    }
+  };
+  
+  const sendFriendRequest = async (username: string) => {
+    console.log(`Sending friend request to user ${username}...`);
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      await api.sendFriendRequest(username);
+      
+      // Reload friends data to reflect changes
+      await loadFriendsData();
+      
+      Alert.alert('Успех', 'Заявка в друзья отправлена');
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ошибка', 'Не удалось отправить заявку в друзья');
+    }
+  };
+  
+  const cancelFriendRequest = async (requestId: string) => {
+    console.log(`Cancelling friend request ${requestId}...`);
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
+      await api.cancelFriendRequest(requestId);
+      
+      // Reload friends data to reflect changes
+      await loadFriendsData();
+      
+      Alert.alert('Успех', 'Заявка в друзья отменена');
+    } catch (error) {
+      console.error('Error cancelling friend request:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ошибка', 'Не удалось отменить заявку в друзья');
+    }
+  };
+
+  // Remove friend function (this would need a DELETE /api/v1/friends/{friend_id} endpoint)
+  const removeFriend = async (friendId: string) => {
+    console.log(`Removing friend ${friendId}...`);
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
+      // Note: This endpoint doesn't exist in the API spec provided
+      // You would need to add: DELETE /api/v1/friends/{friend_id}
+      // await api.removeFriend(friendId);
+      
+      // For now, just reload data
+      await loadFriendsData();
+      
+      setMainShowConfirmDialog(false);
+      setMainPendingRemoval(null);
+      
+      Alert.alert('Успех', 'Друг удален из списка');
+    } catch (error) {
+      console.error('Error removing friend:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ошибка', 'Не удалось удалить друга');
+    }
+  };
+
   // 1. Move extra search users to state
   const [searchMockUsers, setSearchMockUsers] = useState<FriendItem[]>([
-    { id: 11, name: 'NEW USER 1', image: require('./assets/Vision.png'), username: 'newuser1', status: 'not_friend' },
-    { id: 12, name: 'NEW USER 2', image: require('./assets/Vision2.png'), username: 'newuser2', status: 'not_friend' },
-    { id: 13, name: 'REQUEST PENDING 1', image: require('./assets/Vision.png'), username: 'pending1', status: 'request_received' },
-    { id: 14, name: 'REQUEST SENT 1', image: require('./assets/Vision2.png'), username: 'sent1', status: 'request_sent' },
-    { id: 16, name: 'REQUEST SENT SEARCH', image: require('./assets/Vision.png'), username: 'reqsentsearch', status: 'request_sent' },
+    { 
+      id: 'search1', 
+      username: 'searchuser1', 
+      email: 'search1@example.com',
+      status: 'not_friend' 
+    },
+    { 
+      id: 'search2', 
+      username: 'searchuser2', 
+      email: 'search2@example.com',
+      status: 'not_friend' 
+    },
   ]);
 
-  // 2. Update filteredFriends to combine friendItems and searchMockUsers
-  const filteredFriends = searchQuery.length > 0
-    ? [
-        ...friendItems.filter(item => 
-          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.username.toLowerCase().includes(searchQuery.toLowerCase())
-        ),
-        ...searchMockUsers.filter(item => 
-          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      ]
-    : [];
-
-
+  // 2. Update filteredFriends to only use search results from API
+  const filteredFriends = searchQuery.length >= 2 ? searchResults : [];
 
   // Render a saved item
   const renderSavedItem: ListRenderItem<FavoriteItem> = ({ item, index, separators }) => {
@@ -627,20 +760,20 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       );
     }
     const handleAcceptRequest = async () => {
-      if (item.status === 'request_received') {
-        await acceptFriendRequest(item.id);
+      if (item.status === 'request_received' && item.requestId) {
+        await acceptFriendRequest(item.requestId);
       }
     };
     const handleRejectRequest = async () => {
-      if (item.status === 'request_received') {
-        await rejectFriendRequest(item.id);
+      if (item.status === 'request_received' && item.requestId) {
+        await rejectFriendRequest(item.requestId);
       }
     };
     return (
       <FriendListItem
         item={item}
-        onAddFriend={() => sendFriendRequest(item.id)}
-        onCancelRequest={() => cancelFriendRequest(item.id)}
+        onAddFriend={() => sendFriendRequest(item.username)}
+        onCancelRequest={() => item.requestId && cancelFriendRequest(item.requestId)}
         onAcceptRequest={handleAcceptRequest}
         onRejectRequest={handleRejectRequest}
         onRemoveFriend={() => {
@@ -783,14 +916,14 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       );
     }
     const handleAcceptRequest = async () => {
-      if (item.status === 'request_received') {
-        await acceptFriendRequest(item.id);
+      if (item.status === 'request_received' && item.requestId) {
+        await acceptFriendRequest(item.requestId);
       }
     };
 
     const handleRejectRequest = async () => {
-      if (item.status === 'request_received') {
-        await rejectFriendRequest(item.id);
+      if (item.status === 'request_received' && item.requestId) {
+        await rejectFriendRequest(item.requestId);
       }
     };
 
@@ -800,12 +933,12 @@ const Favorites = ({ navigation }: FavoritesProps) => {
           <Pressable 
             style={styles.userImageContainer}
             onPress={() => {
-              console.log(`Friend item pressed: ${item.name}`);
+              console.log(`Friend item pressed: ${item.username}`);
               handleFriendSelect(item);
             }}
           >
             <View style={styles.imageContainer}>
-              <Image source={item.image} style={styles.userImage} />
+              <Image source={require('./assets/Vision.png')} style={styles.userImage} />
             </View>
             <View style={styles.userInfo}>
               <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>
@@ -840,7 +973,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
             <View style={styles.buttonContainerStyle}>
               <TouchableOpacity 
                 style={[styles.addFriendButton, styles.stackedButton]}
-                onPress={() => sendFriendRequest(item.id)}
+                onPress={() => sendFriendRequest(item.username)}
               >
                 <PlusIcon/>
               </TouchableOpacity>
@@ -850,7 +983,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <Animated.View entering={FadeInDown.duration(300)}>
                 <TouchableOpacity 
                   style={[styles.stackedButton, styles.rejectButton, styles.cancelRequestButton]}
-                  onPress={() => cancelFriendRequest(item.id)}
+                  onPress={() => item.requestId && cancelFriendRequest(item.requestId)}
                 >
                   <Text style={styles.cancelRequestText}>Отменить заявку</Text>
                 </TouchableOpacity>
@@ -883,122 +1016,18 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   };
 
   // Get the recommendations for the selected friend, preferring custom recommendations if available
-  const getRecommendationsForFriend = (friendId: number): RecommendedItem[] => {
+  const getRecommendationsForFriend = (friendId: string): RecommendedItem[] => {
     if (customRecommendations[friendId] && customRecommendations[friendId].length > 0) {
       return customRecommendations[friendId];
     }
     return recommendedItems[friendId] || [];
   };
-  
-  // Mock API function to accept a friend request
-  const acceptFriendRequest = async (friendId: number) => {
-    console.log(`Accepting friend request ${friendId}...`);
-    try {
-      // Trigger success haptic feedback
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Find the request we're accepting
-      const request = friendItems.find(friend => friend.id === friendId);
-      
-      if (request) {
-        // Remove from requests
-        setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
-        
-        // Add to friends
-        const newFriend: FriendItem = {
-          id: request.id,
-          name: request.name,
-          image: request.image,
-          username: request.username,
-          status: 'friend'
-        };
-        
-        // Add to friends list
-        setFriendItems(prev => [newFriend, ...prev]);
-        
-        // Update search results if this user was there
-        setSearchUserStatus(request.id, 'friend');
-      }
-    } catch (error) {
-      console.error('Error accepting friend request:', error);
-      // Trigger error haptic feedback
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-  
-  // Mock API function to reject a friend request
-  const rejectFriendRequest = async (friendId: number) => {
-    console.log(`Rejecting friend request ${friendId}...`);
-    try {
-      // Trigger warning haptic feedback
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Find the request we're rejecting
-      const request = friendItems.find(friend => friend.id === friendId);
-      
-      if (request) {
-        // Remove from requests
-        setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
-        
-        // Update search results if this user was there
-        setSearchUserStatus(request.id, 'not_friend');
-      }
-    } catch (error) {
-      console.error('Error rejecting friend request:', error);
-      // Trigger error haptic feedback
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-  
-  // Mock API function to remove a friend
-  const removeFriend = (friendId: number) => {
-    console.log(`Removing friend ${friendId}...`);
-    // Trigger warning haptic feedback
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    
-    // Simulate API call
-    setTimeout(() => {
-      // Remove from friends list
-      setFriendItems(prev => prev.filter(friend => friend.id !== friendId));
-      // Close the confirmation dialog
-      setMainShowConfirmDialog(false);
-      setMainPendingRemoval(null);
-    }, 500);
-  };
-  
-  // Mock API function to send a friend request
-  const sendFriendRequest = (userId: number) => {
-    console.log(`Sending friend request to user ${userId}...`);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setTimeout(() => {
-      setFriendItems(prev => prev.map(friend =>
-        friend.id === userId ? { ...friend, status: 'request_sent' } : friend
-      ));
-      setSearchUserStatus(userId, 'request_sent');
-    }, 500);
-  };
-  
+
   // Helper function to update user status in search results
-  const setSearchUserStatus = (userId: number, status: FriendItem['status']) => {
+  const setSearchUserStatus = (userId: string, status: FriendItem['status']) => {
     setSearchMockUsers(prev => prev.map(user =>
       user.id === userId ? { ...user, status } : user
     ));
-  };
-
-  // 1. Add cancelFriendRequest method
-  const cancelFriendRequest = (userId: number) => {
-    // Update the user's status to 'not_friend' in friendItems and trigger re-render
-    setFriendItems(prev => prev.map(friend =>
-      friend.id === userId ? { ...friend, status: 'not_friend' } : friend
-    ));
-    // Also update search results if needed
-    setSearchUserStatus(userId, 'not_friend');
   };
 
   // Don't render until interactions are complete
@@ -1013,6 +1042,17 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   }
 
   if (!isMounted) return null;
+
+  // Show loading state for friends
+  if (isLoadingFriends) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Загрузка друзей...</Text>
+        </View>
+      </View>
+    );
+  }
 
   // Simplified render method
   return (
@@ -1097,8 +1137,8 @@ interface MainContentProps {
   renderFriendItem: ListRenderItem<FriendItem>;
   savedItems: FavoriteItem[];
   friendItems: FriendItem[];
-  onAcceptRequest: (requestId: number) => void;
-  onRejectRequest: (requestId: number) => void;
+  onAcceptRequest: (requestId: string) => void;
+  onRejectRequest: (requestId: string) => void;
   handleNavigate: (screen: string, params?: any, fromFavorites?: boolean) => void;
 }
 
@@ -1119,13 +1159,13 @@ interface SearchContentProps {
   toggleSearch: () => void;
   filteredFriends: any[];
   renderSearchUser: ListRenderItem<any>;
-  onSendFriendRequest: (userId: number) => void;
-  onRemoveFriend: (friendId: number) => void;
+  onSendFriendRequest: (userId: string) => void;
+  onRemoveFriend: (friendId: string) => void;
   pendingRemoval: FriendItem | null;
   showConfirmDialog: boolean;
   setShowConfirmDialog: (show: boolean) => void;
   setPendingRemoval: (friend: FriendItem | null) => void;
-  removeFriend: (friendId: number) => void;
+  removeFriend: (friendId: string) => void;
 }
 
 // Extracted component for main content to reduce render complexity
@@ -1163,7 +1203,7 @@ const MainContent = ({
               style={styles.flatList}
               data={friendItems}
               renderItem={renderFriendItem}
-              keyExtractor={item => item.id.toString()}
+              keyExtractor={item => item.id}
               showsVerticalScrollIndicator={false}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}
@@ -1279,7 +1319,7 @@ const BottomBoxContent = ({
       <FlatList<FriendItem>
         data={friendItems.slice(0, 2)}
         renderItem={renderFriendItem}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
@@ -1339,8 +1379,10 @@ const SearchContent = ({
       <View style={{ flex: 1 }}>
         {searchQuery.length === 0 ? (
           <Text style={styles.noResultsText}>Начните искать</Text>
-        ) : (filteredFriends.length === 0 ? (
-          <Text style={styles.noResultsText}>No results found</Text>
+        ) : searchQuery.length < 2 ? (
+          <Text style={styles.noResultsText}>Введите минимум 2 символа для поиска</Text>
+        ) : filteredFriends.length === 0 ? (
+          <Text style={styles.noResultsText}>Пользователи не найдены</Text>
         ) : (
           <FlatList<any>
             style={styles.flatList}
@@ -1356,7 +1398,7 @@ const SearchContent = ({
             maxToRenderPerBatch={4}
             windowSize={5}
           />
-        ))}
+        )}
       </View>
     </Animated.View>
     
@@ -1403,6 +1445,11 @@ const FriendProfileView = React.memo(({
   // Store the recommendedItems in a ref to avoid unnecessary effect triggers
   const prevItemsRef = useRef<RecommendedItem[]>([]);
   
+  // State for friend's public profile
+  const [friendProfile, setFriendProfile] = useState<api.PublicUserProfile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  
   // Animated values for button spinning effect
   const [isSpinning, setIsSpinning] = useState(false);
   const borderSpinValue = useRef(new RNAnimated.Value(0)).current;
@@ -1413,6 +1460,29 @@ const FriendProfileView = React.memo(({
     inputRange: [0, 1],
     outputRange: ['0deg', '720deg']
   });
+  
+  // Load friend's public profile when component mounts
+  useEffect(() => {
+    const loadFriendProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        setProfileError(null);
+        
+        const profile = await api.getUserPublicProfile(friend.id);
+        setFriendProfile(profile);
+        console.log('Loaded friend profile:', profile);
+      } catch (error) {
+        console.error('Error loading friend profile:', error);
+        setProfileError('Не удалось загрузить профиль пользователя');
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    
+    if (friend.id) {
+      loadFriendProfile();
+    }
+  }, [friend.id]);
   
   // Handle regenerate button press with spinning border animation
   const handleRegeneratePress = () => {
@@ -1500,7 +1570,7 @@ const FriendProfileView = React.memo(({
       {/* Profile info */}
       <View style={styles.profileInfo}>
         <View style={styles.profileImageContainer}>
-          <Image source={friend.image} style={styles.profileImage} />
+          <Image source={require('./assets/Vision.png')} style={styles.profileImage} />
         </View>
       </View>
 
@@ -1591,7 +1661,7 @@ const FriendProfileView = React.memo(({
             style={styles.textContainer}
           >
             <Text style={styles.text}>
-              {friend.username}
+              {isLoadingProfile ? 'Загрузка...' : profileError ? friend.username : friendProfile?.username || friend.username}
             </Text>
           </Animated.View>
       </Animated.View>
@@ -1602,8 +1672,8 @@ const FriendProfileView = React.memo(({
 // Friend Request Item Component
 interface FriendRequestItemProps {
   request: FriendRequestItem;
-  onAccept: (requestId: number) => void;
-  onReject: (requestId: number) => void;
+  onAccept: (requestId: string) => void;
+  onReject: (requestId: string) => void;
 }
 
 const FriendRequestItemComponent: React.FC<FriendRequestItemProps> = ({ request, onAccept, onReject }) => {
@@ -1612,7 +1682,7 @@ const FriendRequestItemComponent: React.FC<FriendRequestItemProps> = ({ request,
       <Animated.View entering={FadeInDown.duration(300)}>
         <View style={styles.requestItemContainer}>
           <View style={styles.requestImageContainer}>
-            <Image source={request.image} style={styles.itemImage} />
+            <Image source={require('./assets/Vision.png')} style={styles.itemImage} />
             <View style={styles.itemInfo}>
               <Text style={styles.itemName} numberOfLines={1}>@{request.username}</Text>
             </View>
@@ -2299,6 +2369,8 @@ interface FriendListItemProps {
 }
 
 const FriendListItem = memo(({ item, onAddFriend, onCancelRequest, onAcceptRequest, onRejectRequest, onRemoveFriend, onPress, styles, width }: FriendListItemProps) => {
+  console.log('FriendListItem rendering with item:', item);
+  
   return (
     <View style={styles.itemWrapper}>
       <View style={styles.itemContainer}>
@@ -2307,7 +2379,7 @@ const FriendListItem = memo(({ item, onAddFriend, onCancelRequest, onAcceptReque
           onPress={onPress}
         >
           <View style={styles.imageContainer}>
-            <Image source={item.image} style={styles.userImage} />
+            <Image source={require('./assets/Vision.png')} style={styles.userImage} />
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.itemName} numberOfLines={1}>@{item.username}</Text>

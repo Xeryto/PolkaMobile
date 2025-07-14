@@ -498,6 +498,101 @@ export const getStyles = async (): Promise<Style[]> => {
   return await apiRequest('/api/v1/styles', 'GET', undefined, false);
 };
 
+// Friends interfaces
+export interface FriendRequest {
+  id: string;
+  recipient?: {
+    id: string;
+    username: string;
+  };
+  sender?: {
+    id: string;
+    username: string;
+  };
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+}
+
+export interface Friend {
+  id: string;
+  username: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface SearchUser {
+  id: string;
+  username: string;
+  email: string;
+  avatar_url?: string | null;
+  friend_status?: 'friend' | 'request_received' | 'request_sent' | 'not_friend';
+}
+
+export interface FriendRequestResponse {
+  message: string;
+}
+
+// Friends API functions
+export const sendFriendRequest = async (recipientUsername: string): Promise<FriendRequestResponse> => {
+  console.log('Sending friend request to username:', recipientUsername);
+  const requestBody = {
+    recipient_identifier: recipientUsername
+  };
+  console.log('Request body:', JSON.stringify(requestBody, null, 2));
+  
+  return await apiRequest('/api/v1/friends/request', 'POST', requestBody);
+};
+
+export const getSentFriendRequests = async (): Promise<FriendRequest[]> => {
+  return await apiRequest('/api/v1/friends/requests/sent', 'GET');
+};
+
+export const getReceivedFriendRequests = async (): Promise<FriendRequest[]> => {
+  return await apiRequest('/api/v1/friends/requests/received', 'GET');
+};
+
+export const acceptFriendRequest = async (requestId: string): Promise<FriendRequestResponse> => {
+  return await apiRequest(`/api/v1/friends/requests/${requestId}/accept`, 'POST');
+};
+
+export const rejectFriendRequest = async (requestId: string): Promise<FriendRequestResponse> => {
+  return await apiRequest(`/api/v1/friends/requests/${requestId}/reject`, 'POST');
+};
+
+export const cancelFriendRequest = async (requestId: string): Promise<FriendRequestResponse> => {
+  return await apiRequest(`/api/v1/friends/requests/${requestId}/cancel`, 'DELETE');
+};
+
+export const getFriends = async (): Promise<Friend[]> => {
+  return await apiRequest('/api/v1/friends', 'GET');
+};
+
+export const searchUsers = async (query: string): Promise<SearchUser[]> => {
+  if (query.length < 2) {
+    return [];
+  }
+  return await apiRequest(`/api/v1/users/search?query=${encodeURIComponent(query)}`, 'GET');
+};
+
+// Public user profile interface
+export interface PublicUserProfile {
+  id: string;
+  username: string;
+  gender: 'male' | 'female' | null;
+}
+
+// Get public profile of another user
+export const getUserPublicProfile = async (userId: string): Promise<PublicUserProfile> => {
+  return await apiRequest(`/api/v1/users/${userId}/profile`, 'GET');
+};
+
+// TODO: Add remove friend endpoint to API
+// export const removeFriend = async (friendId: string): Promise<FriendRequestResponse> => {
+//   return await apiRequest(`/api/v1/friends/${friendId}`, 'DELETE');
+// };
+
 // Health check
 export const healthCheck = async (): Promise<any> => {
   return await apiRequest('/health', 'GET', undefined, false);
