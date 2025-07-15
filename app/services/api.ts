@@ -532,6 +532,7 @@ export interface SearchUser {
 
 export interface FriendRequestResponse {
   message: string;
+  request_id?: string; // Add optional request_id field
 }
 
 // Friends API functions
@@ -588,10 +589,10 @@ export const getUserPublicProfile = async (userId: string): Promise<PublicUserPr
   return await apiRequest(`/api/v1/users/${userId}/profile`, 'GET');
 };
 
-// TODO: Add remove friend endpoint to API
-// export const removeFriend = async (friendId: string): Promise<FriendRequestResponse> => {
-//   return await apiRequest(`/api/v1/friends/${friendId}`, 'DELETE');
-// };
+// Remove a friend
+export const removeFriend = async (friendId: string): Promise<FriendRequestResponse> => {
+  return await apiRequest(`/api/v1/friends/${friendId}`, 'DELETE');
+};
 
 // Health check
 export const healthCheck = async (): Promise<any> => {

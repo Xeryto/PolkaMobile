@@ -555,6 +555,37 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }, delay);
   };
 
+  // Helper functions to update local state efficiently
+  const updateFriendItemStatus = (friendId: string, newStatus: FriendItem['status'], requestId?: string) => {
+    setFriendItems(prev => prev.map(item => 
+      item.id === friendId 
+        ? { ...item, status: newStatus, requestId: requestId || item.requestId }
+        : item
+    ));
+  };
+
+  const updateSearchItemStatus = (friendId: string, newStatus: FriendItem['status'], requestId?: string) => {
+    setSearchResults(prev => prev.map(item => 
+      item.id === friendId 
+        ? { ...item, status: newStatus, requestId: requestId || item.requestId }
+        : item
+    ));
+  };
+
+  const removeFriendFromLists = (friendId: string) => {
+    setFriendItems(prev => prev.filter(item => item.id !== friendId));
+    setSearchResults(prev => prev.filter(item => item.id !== friendId));
+  };
+
+  const addFriendToLists = (friend: FriendItem) => {
+    setFriendItems(prev => [...prev, friend]);
+    setSearchResults(prev => prev.map(item => 
+      item.id === friend.id 
+        ? { ...item, status: 'friend' as const }
+        : item
+    ));
+  };
+
   // Real API functions for friend actions
   const acceptFriendRequest = async (requestId: string) => {
     console.log(`Accepting friend request ${requestId}...`);
@@ -563,8 +594,13 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       
       await api.acceptFriendRequest(requestId);
       
-      // Reload friends data to reflect changes
-      await loadFriendsData();
+      // Find the friend item that was accepted
+      const acceptedItem = friendItems.find(item => item.requestId === requestId);
+      if (acceptedItem) {
+        // Update the item status to 'friend' and remove requestId
+        updateFriendItemStatus(acceptedItem.id, 'friend');
+        updateSearchItemStatus(acceptedItem.id, 'friend');
+      }
       
       Alert.alert('Успех', 'Заявка в друзья принята');
     } catch (error) {
@@ -581,8 +617,11 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       
       await api.rejectFriendRequest(requestId);
       
-      // Reload friends data to reflect changes
-      await loadFriendsData();
+      // Find and remove the rejected request
+      const rejectedItem = friendItems.find(item => item.requestId === requestId);
+      if (rejectedItem) {
+        removeFriendFromLists(rejectedItem.id);
+      }
       
       Alert.alert('Успех', 'Заявка в друзья отклонена');
     } catch (error) {
@@ -597,10 +636,27 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      await api.sendFriendRequest(username);
+      const response = await api.sendFriendRequest(username);
       
-      // Reload friends data to reflect changes
-      await loadFriendsData();
+      // Find the user in search results and update their status
+      const searchItem = searchResults.find(item => item.username === username);
+      if (searchItem) {
+        // Update the search item with the new status and request ID if available
+        updateSearchItemStatus(searchItem.id, 'request_sent', response.request_id);
+        
+        // If we got a request ID, also add it to the main friends list
+        if (response.request_id) {
+          const newFriendItem: FriendItem = {
+            id: searchItem.id,
+            username: searchItem.username,
+            email: searchItem.email,
+            avatar_url: searchItem.avatar_url,
+            status: 'request_sent',
+            requestId: response.request_id
+          };
+          setFriendItems(prev => [...prev, newFriendItem]);
+        }
+      }
       
       Alert.alert('Успех', 'Заявка в друзья отправлена');
     } catch (error) {
@@ -617,8 +673,13 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       
       await api.cancelFriendRequest(requestId);
       
-      // Reload friends data to reflect changes
-      await loadFriendsData();
+      // Find the cancelled request and update its status instead of removing
+      const cancelledItem = friendItems.find(item => item.requestId === requestId);
+      if (cancelledItem) {
+        // Update status to 'not_friend' instead of removing
+        updateFriendItemStatus(cancelledItem.id, 'not_friend');
+        updateSearchItemStatus(cancelledItem.id, 'not_friend');
+      }
       
       Alert.alert('Успех', 'Заявка в друзья отменена');
     } catch (error) {
@@ -628,18 +689,17 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }
   };
 
-  // Remove friend function (this would need a DELETE /api/v1/friends/{friend_id} endpoint)
+  // Remove friend function (now uses real API endpoint)
   const removeFriend = async (friendId: string) => {
     console.log(`Removing friend ${friendId}...`);
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       
-      // Note: This endpoint doesn't exist in the API spec provided
-      // You would need to add: DELETE /api/v1/friends/{friend_id}
-      // await api.removeFriend(friendId);
+      // Use the real API endpoint
+      await api.removeFriend(friendId);
       
-      // For now, just reload data
-      await loadFriendsData();
+      // Remove friend from both lists
+      removeFriendFromLists(friendId);
       
       setMainShowConfirmDialog(false);
       setMainPendingRemoval(null);
@@ -927,6 +987,27 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       }
     };
 
+    const handleCancelRequest = async () => {
+      // For search results, we need to find the requestId from sent requests
+      if (item.status === 'request_sent') {
+        // First try to use the requestId if it's available in the search item
+        if (item.requestId) {
+          await cancelFriendRequest(item.requestId);
+        } else {
+          // Fall back to finding the request by username
+          const sentRequest = sentRequests.find(request => 
+            request.recipient?.username === item.username
+          );
+          if (sentRequest) {
+            await cancelFriendRequest(sentRequest.id);
+          } else {
+            console.error('Could not find request ID for user:', item.username);
+            Alert.alert('Ошибка', 'Не удалось найти заявку для отмены');
+          }
+        }
+      }
+    };
+
     return (
       <View style={styles.searchItemWrapper}>
         <View style={styles.itemContainer}>
@@ -983,7 +1064,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
               <Animated.View entering={FadeInDown.duration(300)}>
                 <TouchableOpacity 
                   style={[styles.stackedButton, styles.rejectButton, styles.cancelRequestButton]}
-                  onPress={() => item.requestId && cancelFriendRequest(item.requestId)}
+                  onPress={handleCancelRequest}
                 >
                   <Text style={styles.cancelRequestText}>Отменить заявку</Text>
                 </TouchableOpacity>
