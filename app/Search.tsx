@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown, FadeOutDown, FadeOutUp } from 'react-native-reanimated';
 import { AntDesign } from '@expo/vector-icons';
+import * as api from './services/api';
 
 // Create animated text component using proper method for this version
 const AnimatedText = Animated.createAnimatedComponent(Text);
@@ -51,42 +52,38 @@ interface SelectedFilters {
   style: string;
 }
 
-// Simulated API to fetch more search results
-const fetchMoreSearchResults = (query: string = '', filters: SelectedFilters = {
-  category: 'Категория',
-  brand: 'Бренд',
-  style: 'Стиль'
-}, count: number = 2): Promise<SearchItem[]> => {
-  // In a real app, this would be an API call with the search query and filters
-  return new Promise((resolve) => {
-    // Simulate network delay
-    setTimeout(() => {
-      // Generate unique IDs for new search results items
-      const timestamp = new Date().getTime();
-      const newResults: SearchItem[] = [];
-      
-      for (let i = 0; i < count; i++) {
-        // Create unique ID based on timestamp and index
-        const uniqueId = parseInt(`${timestamp}${i}`.slice(-9));
-        
-        // For search results, 30% chance of being already liked
-        const isRandomlyLiked = Math.random() < 0.3;
-        
-        newResults.push({
-          id: uniqueId,
-          name: `SEARCH RESULT ${uniqueId % 1000}${query ? ` - ${query}` : ''}`,
-          price: `${(Math.random() * 50000).toFixed(0)} р`,
-          image: i % 2 === 0 ? 
-            require('./assets/Vision.png') : 
-            require('./assets/Vision2.png'),
-          isLiked: isRandomlyLiked // Set liked status from API
-        });
-      }
-      
-      console.log('Search API - Fetched new results:', newResults);
-      resolve(newResults);
-    }, 500); // 500ms delay to simulate network
-  });
+// Replace simulated API with real product search
+const fetchMoreSearchResults = async (
+  query: string = '',
+  filters: SelectedFilters = {
+    category: 'Категория',
+    brand: 'Бренд',
+    style: 'Стиль'
+  },
+  count: number = 4,
+  offset: number = 0
+): Promise<SearchItem[]> => {
+  try {
+    const params: any = {
+      limit: count,
+      offset,
+    };
+    if (query) params.query = query;
+    if (filters.category && filters.category !== 'Категория') params.category = filters.category;
+    if (filters.brand && filters.brand !== 'Бренд') params.brand = filters.brand;
+    if (filters.style && filters.style !== 'Стиль') params.style = filters.style;
+    const results = await api.getProductSearchResults(params);
+    return results.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
+      isLiked: item.is_liked
+    }));
+  } catch (error) {
+    console.error('Error fetching product search results:', error);
+    return [];
+  }
 };
 
 // Persistent storage for search results that survives component unmounts
@@ -156,11 +153,36 @@ const Search = ({ navigation }: SearchProps) => {
     return defaultResults;
   });
 
-  const filterOptions: FilterOptions = {
-    category: ['Dresses', 'Tops', 'Pants', 'Accessories'],
-    brand: ['Brand A', 'Brand B', 'Brand C', 'Brand D'],
-    style: ['Casual', 'Formal', 'Sport', 'Evening']
-  };
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    category: [],
+    brand: [],
+    style: []
+  });
+  const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+
+  useEffect(() => {
+    const loadFilters = async () => {
+      setIsLoadingFilters(true);
+      try {
+        const [brands, styles, categories] = await Promise.all([
+          api.getBrands(),
+          api.getStyles(),
+          api.getCategories()
+        ]);
+        setFilterOptions({
+          brand: brands.map((b: any) => b.name),
+          style: styles.map((s: any) => s.id), // use id for search param
+          category: categories.map((c: any) => c.id) // use id for search param
+        });
+      } catch (error) {
+        console.error('Error loading filter options:', error);
+        setFilterOptions({ category: [], brand: [], style: [] });
+      } finally {
+        setIsLoadingFilters(false);
+      }
+    };
+    loadFilters();
+  }, []);
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);

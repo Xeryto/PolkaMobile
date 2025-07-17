@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   LayoutChangeEvent,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -27,6 +28,7 @@ import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
 import Tick from '../assets/Tick';
 import Cancel from '../assets/Cancel.svg';
+import * as api from '../services/api';
 const { width, height } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width, height) * 0.275;
 
@@ -36,38 +38,30 @@ interface BrandSearchScreenProps {
   initialBrands?: number[]; // Initial selected brands
 }
 
-// Sample popular brands based on style preference
-const getPopularBrands = () => {
-  return [
-    { id: 1, name: "Армани" },
-    { id: 2, name: "Бурберри" },
-    { id: 3, name: "Гуччи" },
-    { id: 4, name: "Хьюго Босс" },
-    { id: 5, name: "Ральф Лорен" },
-    { id: 6, name: "Версаче" },
-    { id: 7, name: "Прада" },
-    { id: 8, name: "Кельвин Кляйн" },
-    { id: 9, name: "Балман" },
-    { id: 10, name: "Фенди" },
-    { id: 11, name: "Том Форд" },
-    { id: 12, name: "Шанель" }
-  ];
-};
-
 const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBack, initialBrands = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<number[]>(initialBrands);
-  const [popularBrands, setPopularBrands] = useState<{id: number, name: string}[]>([]);
+  const [brands, setBrands] = useState<{id: number, name: string}[]>([]);
+  const [isLoadingBrands, setIsLoadingBrands] = useState(true);
   const [visibleBubblesHeight, setVisibleBubblesHeight] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Animation values
   const searchResultsHeight = useSharedValue(height*0.125);
   const searchResultsOpacity = useSharedValue(0);
   const bubblesHeight = useSharedValue(height*0.2);
-  // Initialize popular brands based on style preference
+  
+  // Fetch brands from API on mount
   useEffect(() => {
-    setPopularBrands(getPopularBrands());
+    setIsLoadingBrands(true);
+    api.getBrands().then((brandList: any[]) => {
+      setBrands(brandList.map(b => ({ id: b.id, name: b.name })));
+      setIsLoadingBrands(false);
+    }).catch(err => {
+      setBrands([]);
+      setIsLoadingBrands(false);
+    });
   }, []);
   
   // Handle animation when search becomes active
@@ -124,8 +118,16 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
     setIsSearchActive(false);
   };
   
-  const handleContinue = () => {
-    onComplete(selectedBrands);
+  const handleContinue = async () => {
+    setIsSubmitting(true);
+    try {
+      await api.updateUserBrands(selectedBrands);
+      onComplete(selectedBrands);
+    } catch (error) {
+      Alert.alert('Ошибка', 'Не удалось сохранить любимые бренды. Попробуйте еще раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   // Handle bubble container layout to measure height
@@ -136,14 +138,14 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
   
   // Filter brands based on search query
   const filteredBrands = searchQuery.length > 0
-    ? popularBrands.filter(brand => 
+    ? brands.filter(brand => 
         brand.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : popularBrands;
+    : brands;
   
   // Render a selected brand bubble
   const renderBrandBubble = (brandId: number, index: number) => {
-    const brand = popularBrands.find(b => b.id === brandId);
+    const brand = brands.find(b => b.id === brandId);
     if (!brand) return null;
     
     return (
@@ -271,14 +273,20 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
                 }
               ]}
             >
-              <FlatList
-                data={filteredBrands}
-                renderItem={renderBrandItem}
-                keyExtractor={(item) => item.id.toString()}
-                numColumns={1}
-                contentContainerStyle={styles.brandsList}
-                showsVerticalScrollIndicator={false}
-              />
+              {isLoadingBrands ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Загрузка брендов...</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredBrands}
+                  renderItem={renderBrandItem}
+                  keyExtractor={(item) => item.id.toString()}
+                  numColumns={1}
+                  contentContainerStyle={styles.brandsList}
+                  showsVerticalScrollIndicator={false}
+                />
+              )}
             </Animated.View>
 
             {/* Selected brands bubbles */}
@@ -311,9 +319,10 @@ const BrandSearchScreen: React.FC<BrandSearchScreenProps> = ({ onComplete, onBac
               <TouchableOpacity 
                 style={styles.continueButton}
                 onPress={handleContinue}
+                disabled={isSubmitting}
               >
                 <Text style={styles.continueButtonText}>
-                  Продолжить
+                  {isSubmitting ? 'Сохранение...' : 'Продолжить'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
@@ -623,6 +632,17 @@ const styles = StyleSheet.create({
     fontFamily: 'IgraSans',
     fontSize: 12,
     color: '#4A3120',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    fontFamily: 'IgraSans',
+    fontSize: 20,
+    color: '#000',
   },
 });
 

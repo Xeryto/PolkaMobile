@@ -9,7 +9,8 @@ import {
   Platform, 
   Animated as RNAnimated, 
   PanResponder,
-  Easing 
+  Easing,
+  Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -20,11 +21,14 @@ import Heart2 from './assets/Heart2.svg';
 import HeartFilled from './assets/HeartFilled.svg';
 import More from './assets/More.svg';
 import Seen from './assets/Seen.svg';
+import * as api from './services/api';
+import fallbackImage from './assets/Vision.png'; // Use as fallback for missing images
+import vision2Image from './assets/Vision2.png';
 
 // Extend the global namespace to include our cart storage
 declare global {
   interface CartItem {
-    id: number;
+    id: string;
     name: string;
     price: string;
     image: any;
@@ -64,13 +68,19 @@ interface MainPageProps {
   };
 }
 
+// Interface for a card item (update id to string)
 interface CardItem {
-  id: number;
+  id: string;
   name: string;
   price: string;
   image: any;
-  isLiked?: boolean; // Add liked status to the card itself
+  isLiked?: boolean;
+  size?: string;
+  quantity?: number;
 }
+
+// Add a constant for the minimum number of cards to maintain
+const MIN_CARDS_THRESHOLD = 3;
 
 // Global cards storage that persists even when component unmounts
 // This ensures the card collection remains intact when navigating between screens
@@ -82,58 +92,43 @@ const persistentCardStorage: {
   initialized: false
 };
 
-// Simulated API to fetch new card items
-const fetchMoreCards = (count: number = 2): Promise<CardItem[]> => {
-  // In a real app, this would be an API call
-  return new Promise((resolve) => {
-    // Simulate network delay
-    setTimeout(() => {
-      // Generate unique IDs for new cards (use timestamp and random num)
-      const timestamp = new Date().getTime();
-      const newCards: CardItem[] = [];
-      
-      for (let i = 0; i < count; i++) {
-        // Create unique ID based on timestamp and index
-        const uniqueId = parseInt(`${timestamp}${i}`.slice(-9));
-        
-        // Randomly determine if the card is already liked (simulating API response)
-        // For API cards, 20% chance of being liked
-        const isRandomlyLiked = Math.random() < 0.2;
-        
-        newCards.push({
-          id: uniqueId,
-          name: `API ITEM ${uniqueId % 1000}`,
-          price: `${(Math.random() * 50000).toFixed(0)} р`,
-          image: i % 2 === 0 ? 
-            require('./assets/Vision.png') : 
-            require('./assets/Vision2.png'),
-          isLiked: isRandomlyLiked // Set liked status from API
-        });
-      }
-      
-      console.log('API - Fetched new cards:', newCards);
-      resolve(newCards);
-    }, 500); // 500ms delay to simulate network
-  });
+// Fetch recommendations from the real API
+const fetchMoreCards = async (count: number = 2): Promise<CardItem[]> => {
+  try {
+    // Temporary workaround: get all and slice, until API client supports limit param
+    const products = await api.getUserRecommendations();
+    // Map RecommendationProduct to CardItem and slice to count
+    return products.slice(0, count).map((p, i) => ({
+      id: p.id.toString(),
+      name: p.name,
+      price: p.price,
+      image: i % 2 === 0 ? fallbackImage : vision2Image,
+      isLiked: p.is_liked === true,
+    }));
+  } catch (error: any) {
+    if (error && error.message && error.message.toLowerCase().includes('invalid token')) {
+      Alert.alert('Сессия истекла', 'Пожалуйста, войдите в аккаунт снова.');
+      // Optionally, trigger navigation to login if available
+      // navigation.navigate('Login');
+      return [];
+    }
+    console.error('Error fetching recommendations:', error);
+    return [];
+  }
 };
 
-// Simulate API call to like/unlike an item
-const simulateLikeApi = (cardId: number, setLiked: boolean): Promise<boolean> => {
-  return new Promise((resolve) => {
-    // Simulate network delay
-    setTimeout(() => {
-      console.log(`API - ${setLiked ? 'Liking' : 'Unliking'} card ID ${cardId}`);
-      
-      // In a real app, this would send a request to the server
-      // to update the card's like status. Here we update the card directly.
-      // We'll do this in the component instead of here
-      
-      resolve(true);
-    }, 300); // 300ms delay to simulate network
-  });
+// Like/unlike using the real API
+const toggleLikeApi = async (productId: string, setLiked: boolean): Promise<boolean> => {
+  try {
+    const action = setLiked ? 'like' : 'unlike';
+    await api.toggleFavorite(productId, action);
+    return true;
+  } catch (error) {
+    console.error('Error toggling favorite:', error);
+    return false;
+  }
 };
 
-// Add this after imports and before MainPage component
 // Dedicated Heart Button component to improve like/unlike functionality
 interface HeartButtonProps {
   isLiked: boolean;
@@ -286,33 +281,29 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const seenButtonScale = useRef(new RNAnimated.Value(1)).current;
   
   // Initialize cards state with a callback to avoid unnecessary updates
-  const [cards, setCards] = useState<CardItem[]>(() => {
-    if (persistentCardStorage.initialized) {
-      return persistentCardStorage.cards;
-    }
-    
-    const defaultCards = [
-      { 
-        id: 1, 
-        name: 'DEFAULT ITEM 1', 
-        price: '25 000 р', 
-        image: require('./assets/Vision.png'),
-        isLiked: false
-      },
-      { 
-        id: 2, 
-        name: 'DEFAULT ITEM 2', 
-        price: '30 000 р', 
-        image: require('./assets/Vision2.png'),
-        isLiked: false
+  const [cards, setCards] = useState<CardItem[]>([]);
+  const [isLoadingInitialCards, setIsLoadingInitialCards] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadInitialCards = async () => {
+      setIsLoadingInitialCards(true);
+      const starterCards = await fetchMoreCards(MIN_CARDS_THRESHOLD + 1);
+      if (isMounted) {
+        setCards(starterCards);
+        persistentCardStorage.cards = starterCards;
+        persistentCardStorage.initialized = true;
+        setIsLoadingInitialCards(false);
       }
-    ];
-    
-    persistentCardStorage.cards = defaultCards;
-    persistentCardStorage.initialized = true;
-    
-    return defaultCards;
-  });
+    };
+    if (!persistentCardStorage.initialized) {
+      loadInitialCards();
+    } else {
+      setCards(persistentCardStorage.cards);
+      setIsLoadingInitialCards(false);
+    }
+    return () => { isMounted = false; };
+  }, []);
 
   const sizes = ['XS', 'S', 'M', 'L', 'XL'];
 
@@ -474,9 +465,20 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     persistentCardStorage.cards = newCards;
     
     // Simulate API call
-    simulateLikeApi(card.id, newLikedStatus);
+    toggleLikeApi(card.id, newLikedStatus).then(success => {
+      if (success) {
+        console.log(`toggleLike - Updated card ${card.id} like status to: ${newLikedStatus}`);
+      } else {
+        console.error(`toggleLike - Failed to update card ${card.id} like status to: ${newLikedStatus}`);
+        // Optionally revert the state if API call fails
+        setCards(prevCards => {
+          const revertedCards = [...prevCards];
+          revertedCards[index] = { ...revertedCards[index], isLiked: currentLikedStatus };
+          return revertedCards;
+        });
+      }
+    });
     
-    console.log(`toggleLike - Updated card ${card.id} like status to: ${newLikedStatus}`);
   }, [cards]);
   
   const handleLongPress = useCallback((index: number) => {
@@ -499,11 +501,10 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
 
   const swipeCard = (direction: 'up' | 'right' = 'up') => {
     if (isAnimating) return;
-    
-    // Add cushioning - prevent swiping the last card until more are loaded
-    if (cards.length <= 1) {
+
+    // Only block swipe if there is truly only one card left
+    if (cards.length === 1) {
       console.log('MainPage - Preventing swipe of last card until more are loaded');
-      
       // Show a quick bounce animation to indicate swipe is not allowed
       RNAnimated.sequence([
         RNAnimated.timing(pan, {
@@ -519,30 +520,24 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
           useNativeDriver: false
         })
       ]).start();
-      
       // Trigger card refresh instead of swiping
       if (!isRefreshing) {
         refreshCards();
       }
-      
       // Provide haptic feedback to indicate action is restricted
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      
       return;
     }
-    
+
     setIsAnimating(true);
-    
     // Get current card before it's removed
     const currentCard = cards[currentCardIndex];
-    
     // Set a timeout that will reset animation state if something goes wrong
     const animationSafetyTimeout = setTimeout(() => {
       console.log('MainPage - Animation safety timeout triggered');
       setIsAnimating(false);
       pan.setValue({ x: 0, y: 0 });
     }, 2000); // 2 seconds is enough time for the animation to complete
-    
     // Animate card moving off screen
     RNAnimated.timing(pan, {
       toValue: { 
@@ -555,56 +550,41 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }).start(() => {
       // Clear the safety timeout since animation completed
       clearTimeout(animationSafetyTimeout);
-      
       // Remove the current card from the array
       setCards(prevCards => {
-        // If no cards left, just return empty array
         if (prevCards.length === 0) {
           return [];
         }
-        
-        // Create new array without the current card
         const newCards = [...prevCards];
         if (newCards.length > 0) {
           newCards.splice(currentCardIndex, 1);
         }
-        
         // Log removed card info
         console.log(`MainPage - Card ${currentCard?.id} was swiped ${direction}`);
         console.log('MainPage - Remaining cards:', newCards.length);
-        
         // Reset current index if needed
         const newIndex = currentCardIndex >= newCards.length ? 
           Math.max(0, newCards.length - 1) : 
           currentCardIndex;
         setTimeout(() => setCurrentCardIndex(newIndex), 0);
-        
         // Check if we need to fetch more cards - start fetching earlier when getting low
-        if (newCards.length < 3) {
+        if (newCards.length < MIN_CARDS_THRESHOLD) {
           console.log('MainPage - Low on cards, fetching more from API');
-          fetchMoreCards(2).then(apiCards => {
-            // We need to use another setCards call because we can't
-            // update the state we're currently setting
+          fetchMoreCards(MIN_CARDS_THRESHOLD - newCards.length + 1).then(apiCards => {
             setCards(latestCards => {
               const updatedCards = [...latestCards, ...apiCards];
               console.log('MainPage - Added new cards, total count:', updatedCards.length);
-              
-              // Update persistent storage
               persistentCardStorage.cards = updatedCards;
               return updatedCards;
             });
           });
         } else {
-          // Always update persistent storage
           persistentCardStorage.cards = newCards;
         }
-        
         return newCards;
       });
-      
       // Reset pan position
       pan.setValue({ x: 0, y: screenHeight });
-      
       // Animate card back to original position
       RNAnimated.spring(pan, {
         toValue: { x: 0, y: 0 },
@@ -727,7 +707,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const handleSizeSelect = (size: string) => {
     // Add the current card with selected size to cart
     const currentCard = cards[currentCardIndex];
-    const cartItem = {
+    const cartItem: CartItem = {
       id: currentCard.id,
       name: currentCard.name,
       price: currentCard.price,
@@ -1052,8 +1032,13 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
     }).start();
   }, []);
 
-  // Add a constant for the minimum number of cards to maintain
-  const MIN_CARDS_THRESHOLD = 3;
+  if (isLoadingInitialCards) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Загрузка...</Text>
+      </View>
+    );
+  }
 
   return (
     <RNAnimated.View style={{ opacity: pageOpacity, width: '100%', height: '100%' }}>

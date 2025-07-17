@@ -12,13 +12,15 @@ import {
   Image,
   Pressable,
   NativeSyntheticEvent,
-  NativeScrollEvent
+  NativeScrollEvent,
+  Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
 import Scroll from '../assets/Scroll.svg';
+import * as api from '../services/api';
 const { width, height } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width, height) * 0.275;
 const ITEM_WIDTH = width * 0.5; // Style item width slightly wider than 50%
@@ -30,50 +32,6 @@ interface StyleOption {
   description: string;
 }
 
-// Mock style options - in a real app, these would come from an API
-const STYLE_OPTIONS: StyleOption[] = [
-  { 
-    id: 'casual', 
-    name: 'Повседневный', 
-    description: 'Комфортная одежда для ежедневной носки'
-  },
-  { 
-    id: 'formal', 
-    name: 'Деловой', 
-    description: 'Элегантная одежда для офиса и встреч'
-  },
-  { 
-    id: 'sport', 
-    name: 'Спортивный', 
-    description: 'Функциональная одежда для активного образа жизни'
-  },
-  { 
-    id: 'romantic', 
-    name: 'Романтичный', 
-    description: 'Женственные, изящные силуэты'
-  },
-  { 
-    id: 'streetwear', 
-    name: 'Уличный', 
-    description: 'Современный городской стиль'
-  },
-  { 
-    id: 'vintage', 
-    name: 'Винтаж', 
-    description: 'Классические силуэты прошлых десятилетий'
-  },
-  { 
-    id: 'minimalist', 
-    name: 'Минимализм', 
-    description: 'Простые, лаконичные силуэты и нейтральные цвета'
-  },
-  { 
-    id: 'bohemian', 
-    name: 'Богемный', 
-    description: 'Свободные силуэты и этнические мотивы'
-  }
-];
-
 interface StylesSelectionScreenProps {
   gender: 'male' | 'female';
   onComplete: (selectedStyles: string[]) => void;
@@ -83,11 +41,26 @@ interface StylesSelectionScreenProps {
 const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ gender, onComplete, onBack }) => {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [showScrollHint, setShowScrollHint] = useState(true);
-  
+  const [stylesOptions, setStylesOptions] = useState<any[]>([]);
+  const [isLoadingStyles, setIsLoadingStyles] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch styles from API on mount
+  useEffect(() => {
+    setIsLoadingStyles(true);
+    api.getStyles().then((styleList: any[]) => {
+      setStylesOptions(styleList);
+      setIsLoadingStyles(false);
+    }).catch(err => {
+      setStylesOptions([]);
+      setIsLoadingStyles(false);
+    });
+  }, []);
+
   // Filter style options based on gender preference if needed
   const styleOptions = gender === 'female' 
-    ? STYLE_OPTIONS 
-    : STYLE_OPTIONS.filter(style => !['romantic', 'bohemian'].includes(style.id));
+    ? stylesOptions 
+    : stylesOptions.filter(style => !['romantic', 'bohemian'].includes(style.id));
   
   const handleStyleSelect = (id: string) => {
     setSelectedStyles(prev => {
@@ -103,8 +76,16 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ gender, o
     });
   };
   
-  const handleContinue = () => {
-    onComplete(selectedStyles);
+  const handleContinue = async () => {
+    setIsSubmitting(true);
+    try {
+      await api.updateUserStyles(selectedStyles);
+      onComplete(selectedStyles);
+    } catch (error) {
+      Alert.alert('Ошибка', 'Не удалось сохранить любимые стили. Попробуйте еще раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -217,9 +198,10 @@ const StylesSelectionScreen: React.FC<StylesSelectionScreenProps> = ({ gender, o
               <TouchableOpacity 
                 style={styles.continueButton}
                 onPress={handleContinue}
+                disabled={isSubmitting}
               >
                 <Text style={styles.continueButtonText}>
-                  Продолжить
+                  {isSubmitting ? 'Сохранение...' : 'Продолжить'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>

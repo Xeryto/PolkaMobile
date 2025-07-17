@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as Font from 'expo-font';
-import { StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing, Platform, Alert } from 'react-native';
+import { StatusBar, Pressable, SafeAreaView, StyleSheet, Text, View, Animated, Dimensions, Easing, Platform, Alert, Modal, Button } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MainPage from './app/MainPage';
 import CartPage from './app/Cart';
@@ -20,6 +20,7 @@ import * as cartStorage from './app/cartStorage';
 import * as api from './app/services/api';
 import { useSession } from './app/hooks/useSession';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sessionManager } from './app/services/api';
 
 import Cart from './app/assets/Cart.svg'; // Adjust the path as needed
 import Search from './app/assets/Search.svg'; // Adjust the path as needed
@@ -30,7 +31,7 @@ import Settings from './app/assets/Settings.svg'; // Adjust the path as needed
 // Extend global namespace for cart storage
 declare global {
   interface CartItem {
-    id: number;
+    id: string;
     name: string;
     price: string;
     image: any;
@@ -73,6 +74,7 @@ export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [showLoading, setShowLoading] = useState(true);
   const [showAuthLoading, setShowAuthLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   
   // Use the new session management hook
   const { isAuthenticated, isLoading: sessionLoading, error: sessionError, login, logout } = useSession();
@@ -111,24 +113,23 @@ export default function App() {
     Settings: {}
   });
 
-  // Handle session errors
+  // Global session expiration handler
   useEffect(() => {
-    if (sessionError) {
-      Alert.alert(
-        'Session Error',
-        sessionError,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Clear the error and show welcome screen
-              logout();
-            }
-          }
-        ]
-      );
-    }
-  }, [sessionError, logout]);
+    const unsubscribe = sessionManager.addListener((event) => {
+      if (event === 'login_required') {
+        setSessionExpired(true);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Suppress sessionError Alert (remove the old useEffect for sessionError)
+
+  // Handler for re-login
+  const handleRelogin = () => {
+    setSessionExpired(false);
+    logout(); // This will clear state and show the login screen
+  };
 
   // Initialize cart from storage
   useEffect(() => {
@@ -802,6 +803,20 @@ export default function App() {
           )}
         </SafeAreaView>
       </LinearGradient>
+      {/* Place this Modal at the root so it overlays everything */}
+      <Modal visible={sessionExpired} transparent animationType="fade">
+        <View style={{
+          flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'
+        }}>
+          <View style={{
+            backgroundColor: 'white', padding: 24, borderRadius: 12, alignItems: 'center'
+          }}>
+            <Text style={{ fontSize: 18, marginBottom: 16 }}>Сессия истекла</Text>
+            <Text style={{ fontSize: 14, marginBottom: 24 }}>Пожалуйста, войдите снова.</Text>
+            <Button title="Войти" onPress={handleRelogin} />
+          </View>
+        </View>
+      </Modal>
     </GestureHandlerRootView>
   );
 }

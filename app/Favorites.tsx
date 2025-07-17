@@ -53,7 +53,7 @@ interface FavoritesProps {
 
 // Interface for saved items with price
 interface FavoriteItem {
-  id: number;
+  id: string;
   name: string;
   price: string;
   image: any;
@@ -81,13 +81,13 @@ interface FriendRequestItem {
 }
 
 // Interface for recommended items for friends
-interface RecommendedItem {
-  id: number;
+type RecommendedItem = {
+  id: string;
   name: string;
   price: string;
   image: any;
   isLiked?: boolean;
-}
+};
 
 interface UserActionButtonProps {
   status: FriendItem['status'];
@@ -208,6 +208,10 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   // Animation value for press animation
   const pressAnimationScale = useSharedValue(1);
 
+  // Saved items state
+  const [savedItems, setSavedItems] = useState<FavoriteItem[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+
   // Load friends and requests on component mount
   useEffect(() => {
     loadFriendsData();
@@ -270,47 +274,43 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     }
   };
 
-  // Sample data for saved items and friend items
-  const savedItems: FavoriteItem[] = [
-    { 
-      id: 1, 
-      name: 'SAVED ITEM 1', 
-      price: '25 000 р', 
-      image: require('./assets/Vision.png')
-    },
-    { 
-      id: 2, 
-      name: 'SAVED ITEM 2', 
-      price: '30 000 р', 
-      image: require('./assets/Vision2.png')
-    },
-    { 
-      id: 3, 
-      name: 'SAVED ITEM 3', 
-      price: '22 000 р', 
-      image: require('./assets/Vision.png')
-    },
-    { 
-      id: 4, 
-      name: 'SAVED ITEM 4', 
-      price: '18 000 р', 
-      image: require('./assets/Vision2.png')
-    },
-  ];
+  // Load saved items on component mount
+  useEffect(() => {
+    const loadSavedItems = async () => {
+      setIsLoadingSaved(true);
+      try {
+        const favorites = await api.getUserFavorites();
+        // Map API response to FavoriteItem[]
+        setSavedItems(favorites.map((item: any, i: number) => ({
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          image: i % 2 === 0 ? require('./assets/Vision.png') : require('./assets/Vision2.png'),
+          isLiked: item.is_liked
+        })));
+      } catch (error) {
+        console.error('Error loading saved items:', error);
+        setSavedItems([]);
+      } finally {
+        setIsLoadingSaved(false);
+      }
+    };
+    loadSavedItems();
+  }, []);
 
   // Sample recommended items for friends
   const recommendedItems: { [key: string]: RecommendedItem[] } = {
     'friend1': [
-      { id: 101, name: 'Для друга 1 - Рек. 1', price: '15 000 р', image: require('./assets/Vision.png') },
-      { id: 102, name: 'Для друга 1 - Рек. 2', price: '20 000 р', image: require('./assets/Vision2.png') },
-      { id: 103, name: 'Для друга 1 - Рек. 3', price: '18 000 р', image: require('./assets/Vision.png') },
-      { id: 104, name: 'Для друга 1 - Рек. 4', price: '22 000 р', image: require('./assets/Vision2.png') },
+      { id: '101', name: 'Для друга 1 - Рек. 1', price: '15 000 р', image: require('./assets/Vision.png') },
+      { id: '102', name: 'Для друга 1 - Рек. 2', price: '20 000 р', image: require('./assets/Vision2.png') },
+      { id: '103', name: 'Для друга 1 - Рек. 3', price: '18 000 р', image: require('./assets/Vision.png') },
+      { id: '104', name: 'Для друга 1 - Рек. 4', price: '22 000 р', image: require('./assets/Vision2.png') },
     ],
     'friend2': [
-      { id: 201, name: 'Для друга 2 - Рек. 1', price: '25 000 р', image: require('./assets/Vision2.png') },
-      { id: 202, name: 'Для друга 2 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
-      { id: 203, name: 'Для друга 2 - Рек. 3', price: '21 000 р', image: require('./assets/Vision2.png') },
-      { id: 204, name: 'Для друга 2 - Рек. 4', price: '17 000 р', image: require('./assets/Vision.png') },
+      { id: '201', name: 'Для друга 2 - Рек. 1', price: '25 000 р', image: require('./assets/Vision2.png') },
+      { id: '202', name: 'Для друга 2 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
+      { id: '203', name: 'Для друга 2 - Рек. 3', price: '21 000 р', image: require('./assets/Vision2.png') },
+      { id: '204', name: 'Для друга 2 - Рек. 4', price: '17 000 р', image: require('./assets/Vision.png') },
     ],
   };
   
@@ -509,7 +509,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   };
 
   // Simulate API call to check if an item is liked by the user
-  const checkItemLikedStatus = (itemId: number): Promise<boolean> => {
+  const checkItemLikedStatus = (itemId: string): Promise<boolean> => {
     return new Promise((resolve) => {
       // Simulate network delay
       setTimeout(() => {
@@ -1198,6 +1198,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                 renderRecommendedItem={renderRecommendedItem}
                 onRegenerate={handleRegenerateRecommendations}
                 isRegenerating={isRegenerating}
+                setCustomRecommendations={setCustomRecommendations}
               />
             )}
           </Animated.View>
@@ -1509,6 +1510,7 @@ interface FriendProfileViewProps {
   renderRecommendedItem: ListRenderItem<RecommendedItem>;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  setCustomRecommendations: React.Dispatch<React.SetStateAction<{[key: string]: RecommendedItem[]}>>;
 }
 
 // Friend Profile View Component
@@ -1518,7 +1520,8 @@ const FriendProfileView = React.memo(({
   recommendedItems, 
   renderRecommendedItem,
   onRegenerate,
-  isRegenerating
+  isRegenerating,
+  setCustomRecommendations
 }: FriendProfileViewProps) => {
   // Track whether recommendations have been regenerated for animation purposes
   const [isNewRecommendation, setIsNewRecommendation] = useState(false);
@@ -1636,6 +1639,27 @@ const FriendProfileView = React.memo(({
   const renderItem = React.useCallback(({ item, index, separators }: ListRenderItemInfo<RecommendedItem>) => {
     return renderRecommendedItem({ item, index, separators });
   }, [renderRecommendedItem, isNewRecommendation]); // Only re-create when these dependencies change
+  
+  // In FriendProfileView, fetch recommendations from the real API
+  useEffect(() => {
+    const loadFriendRecommendations = async () => {
+      if (!friend.id) return;
+      try {
+        const recs = await api.getFriendRecommendations(friend.id);
+        // Convert to RecommendedItem[] for rendering
+        const recommendedItems = recs.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
+        }));
+        setCustomRecommendations((prev: {[key: string]: RecommendedItem[]}) => ({ ...prev, [friend.id]: recommendedItems }));
+      } catch (error) {
+        console.error('Error loading friend recommendations:', error);
+      }
+    };
+    loadFriendRecommendations();
+  }, [friend.id, setCustomRecommendations]);
   
   return (
     <Animated.View style={styles.profileContainer} entering={FadeInDown.duration(500)} exiting={FadeOutDown.duration(50)}>

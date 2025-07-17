@@ -7,7 +7,8 @@ import {
   Platform,
   SafeAreaView,
   Dimensions,
-  Pressable
+  Pressable,
+  Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -22,6 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Logo from '../assets/Logo.svg';
 import BackIcon from '../assets/Back.svg';
+import * as api from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -34,13 +36,20 @@ const LOGO_SIZE = Math.min(width, height) * 0.275; // 25% of the smallest dimens
 
 const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onBack }) => {
   const [selectedOption, setSelectedOption] = useState<'male' | 'female' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Handle option selection with fade-out animation
-  const handleOptionSelect = (option: 'male' | 'female') => {
+  const handleOptionSelect = async (option: 'male' | 'female') => {
     setSelectedOption(option);
-    
-    // Delay onComplete call to allow animation to complete
-    onComplete(option);
+    setIsSubmitting(true);
+    try {
+      await api.updateUserProfile(option);
+      onComplete(option);
+    } catch (error) {
+      Alert.alert('Ошибка', 'Не удалось сохранить пол. Попробуйте еще раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -97,6 +106,7 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
                     ]}
                     onPress={() => handleOptionSelect('male')}
                     android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
+                    disabled={isSubmitting}
                   >
                     <Text style={[
                       styles.optionButtonTextM,
@@ -117,6 +127,7 @@ const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({ onComplete, onB
                     ]}
                     onPress={() => handleOptionSelect('female')}
                     android_ripple={{color: '#CCA479', borderless: false, radius: 41}}
+                    disabled={isSubmitting}
                   >
                     <Text style={[
                       styles.optionButtonTextF,

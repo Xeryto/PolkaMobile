@@ -598,3 +598,55 @@ export const removeFriend = async (friendId: string): Promise<FriendRequestRespo
 export const healthCheck = async (): Promise<any> => {
   return await apiRequest('/health', 'GET', undefined, false);
 };
+
+// Toggle favorite (like/unlike) a product
+export const toggleFavorite = async (productId: string, action: 'like' | 'unlike'): Promise<{ message: string }> => {
+  return await apiRequest('/api/v1/user/favorites/toggle', 'POST', {
+    product_id: productId,
+    action,
+  });
+};
+
+// Get recommendations for the current user
+export interface RecommendationProduct {
+  id: string;
+  name: string;
+  price: string;
+  image_url: string | null;
+  is_liked: boolean;
+}
+
+export const getUserRecommendations = async (): Promise<RecommendationProduct[]> => {
+  return await apiRequest('/api/v1/recommendations/for_user', 'GET');
+};
+
+// Get recommendations for a friend
+export interface FriendRecommendationProduct {
+  id: string;
+  name: string;
+  price: string;
+  image_url: string | null;
+}
+
+export const getFriendRecommendations = async (friendId: string): Promise<FriendRecommendationProduct[]> => {
+  return await apiRequest(`/api/v1/recommendations/for_friend/${friendId}`, 'GET');
+};
+
+// Get user's favorite (liked) products
+export const getUserFavorites = async (): Promise<RecommendationProduct[]> => {
+  return await apiRequest('/api/v1/user/favorites', 'GET');
+};
+
+// Product search endpoint
+export const getProductSearchResults = async (params: Record<string, any>): Promise<RecommendationProduct[]> => {
+  // Build query string from params
+  const query = Object.entries(params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return await apiRequest(`/api/v1/products/search?${query}`, 'GET');
+};
+
+// Get all categories
+export const getCategories = async (): Promise<any[]> => {
+  return await apiRequest('/api/v1/categories', 'GET', undefined, false);
+};
