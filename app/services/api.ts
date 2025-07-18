@@ -626,6 +626,7 @@ export interface FriendRecommendationProduct {
   name: string;
   price: string;
   image_url: string | null;
+  is_liked: boolean;
 }
 
 export const getFriendRecommendations = async (friendId: string): Promise<FriendRecommendationProduct[]> => {

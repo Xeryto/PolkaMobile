@@ -212,6 +212,9 @@ const Favorites = ({ navigation }: FavoritesProps) => {
   const [savedItems, setSavedItems] = useState<FavoriteItem[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
 
+  const [friendRecommendations, setFriendRecommendations] = useState<{ [key: string]: RecommendedItem[] }>({});
+  const [isLoadingFriendRecs, setIsLoadingFriendRecs] = useState<{ [key: string]: boolean }>({});
+
   // Load friends and requests on component mount
   useEffect(() => {
     loadFriendsData();
@@ -298,22 +301,35 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     loadSavedItems();
   }, []);
 
-  // Sample recommended items for friends
-  const recommendedItems: { [key: string]: RecommendedItem[] } = {
-    'friend1': [
-      { id: '101', name: 'Для друга 1 - Рек. 1', price: '15 000 р', image: require('./assets/Vision.png') },
-      { id: '102', name: 'Для друга 1 - Рек. 2', price: '20 000 р', image: require('./assets/Vision2.png') },
-      { id: '103', name: 'Для друга 1 - Рек. 3', price: '18 000 р', image: require('./assets/Vision.png') },
-      { id: '104', name: 'Для друга 1 - Рек. 4', price: '22 000 р', image: require('./assets/Vision2.png') },
-    ],
-    'friend2': [
-      { id: '201', name: 'Для друга 2 - Рек. 1', price: '25 000 р', image: require('./assets/Vision2.png') },
-      { id: '202', name: 'Для друга 2 - Рек. 2', price: '19 000 р', image: require('./assets/Vision.png') },
-      { id: '203', name: 'Для друга 2 - Рек. 3', price: '21 000 р', image: require('./assets/Vision2.png') },
-      { id: '204', name: 'Для друга 2 - Рек. 4', price: '17 000 р', image: require('./assets/Vision.png') },
-    ],
+  // Load friend recommendations on component mount
+  useEffect(() => {
+    if (selectedFriend && selectedFriend.id) {
+      loadFriendRecommendations(selectedFriend.id);
+    }
+  }, [selectedFriend]);
+
+  const loadFriendRecommendations = async (friendId: string) => {
+    setIsLoadingFriendRecs(prev => ({ ...prev, [friendId]: true }));
+    try {
+      const recs = await api.getFriendRecommendations(friendId);
+      setFriendRecommendations(prev => ({
+        ...prev,
+        [friendId]: recs.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
+          isLiked: item.is_liked
+        }))
+      }));
+    } catch (error) {
+      setFriendRecommendations(prev => ({ ...prev, [friendId]: [] }));
+      Alert.alert('Ошибка', 'Не удалось загрузить рекомендации для друга.');
+    } finally {
+      setIsLoadingFriendRecs(prev => ({ ...prev, [friendId]: false }));
+    }
   };
-  
+
   // Animated styles for views
   const mainViewAnimatedStyle = useAnimatedStyle(() => ({
     position: 'absolute',
@@ -482,7 +498,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     // Simulate API call with a delay
     setTimeout(() => {
       // Generate new recommendations (in a real app, this would be from an API)
-      const shuffledItems = [...recommendedItems[selectedFriend.id]];
+      const shuffledItems = [...customRecommendations[selectedFriend.id]];
       
       // Shuffle the array to simulate new recommendations
       for (let i = shuffledItems.length - 1; i > 0; i--) {
@@ -895,46 +911,25 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     
     // More complex animations for iOS
     return (
-      <View style={[styles.itemWrapper, {width: (width * 0.88 - 45) / 2}]}>
-        <Animated.View
-          entering={FadeInDown.duration(300).delay(100 + index * 50)}
-          exiting={FadeOutDown.duration(50)}
-        >
-          <View style={styles.itemContainer}>
-            <Pressable 
-              style={styles.itemImageContainer}
-              onPress={() => {
-                console.log(`Recommended item pressed: ${item.name}`);
-                
-                // Check liked status with API before navigating
-                checkItemLikedStatus(item.id)
-                  .then(isLiked => {
-                    // Update the item with the liked status from the API
-                    const itemWithLikeStatus = {
-                      ...item,
-                      isLiked: isLiked
-                    };
-                    
-                    // Navigate to main page with the recommended item and its like status
-                    handleNavigate('Home', itemWithLikeStatus, true);
-                  })
-                  .catch(error => {
-                    console.error('Error checking like status:', error);
-                    // If there's an error, navigate with the original item
-                    handleNavigate('Home', item, true);
-                  });
-              }}
-            >
-              <Image source={item.image} style={styles.itemImage} />
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-              </View>
-              <View style={styles.priceContainer}>
-                <Text style={styles.itemPrice}>{item.price}</Text>
-              </View>
-            </Pressable>
-          </View>
-        </Animated.View>
+      <View style={[styles.itemWrapper, {width: (width * 0.88 - 45) / 2}]}> 
+        <View style={styles.itemContainer}>
+          <Pressable 
+            style={styles.itemImageContainer}
+            onPress={() => {
+              console.log(`Recommended item pressed: ${item.name}`);
+              // Use the isLiked property from the item directly
+              handleNavigate('Home', { ...item, isLiked: item.isLiked }, true);
+            }}
+          >
+            <Image source={item.image} style={styles.itemImage} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+            </View>
+            <View style={styles.priceContainer}>
+              <Text style={styles.itemPrice}>{item.price}</Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
     );
   };
@@ -1101,7 +1096,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     if (customRecommendations[friendId] && customRecommendations[friendId].length > 0) {
       return customRecommendations[friendId];
     }
-    return recommendedItems[friendId] || [];
+    return [];
   };
 
   // Helper function to update user status in search results
@@ -1199,6 +1194,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
                 onRegenerate={handleRegenerateRecommendations}
                 isRegenerating={isRegenerating}
                 setCustomRecommendations={setCustomRecommendations}
+                isLoadingFriendRecs={isLoadingFriendRecs[selectedFriend?.id]}
               />
             )}
           </Animated.View>
@@ -1511,6 +1507,7 @@ interface FriendProfileViewProps {
   onRegenerate: () => void;
   isRegenerating: boolean;
   setCustomRecommendations: React.Dispatch<React.SetStateAction<{[key: string]: RecommendedItem[]}>>;
+  isLoadingFriendRecs: boolean;
 }
 
 // Friend Profile View Component
@@ -1521,7 +1518,8 @@ const FriendProfileView = React.memo(({
   renderRecommendedItem,
   onRegenerate,
   isRegenerating,
-  setCustomRecommendations
+  setCustomRecommendations,
+  isLoadingFriendRecs
 }: FriendProfileViewProps) => {
   // Track whether recommendations have been regenerated for animation purposes
   const [isNewRecommendation, setIsNewRecommendation] = useState(false);
@@ -1652,6 +1650,7 @@ const FriendProfileView = React.memo(({
           name: item.name,
           price: item.price,
           image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
+          isLiked: item.is_liked
         }));
         setCustomRecommendations((prev: {[key: string]: RecommendedItem[]}) => ({ ...prev, [friend.id]: recommendedItems }));
       } catch (error) {

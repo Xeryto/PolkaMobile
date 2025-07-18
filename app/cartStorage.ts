@@ -5,7 +5,7 @@ const CART_ITEMS_KEY = '@PolkaMobile:cartItems';
 
 // Define cart item type
 export interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: string;
   image: any;
