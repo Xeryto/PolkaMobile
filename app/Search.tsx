@@ -38,6 +38,7 @@ interface SearchItem {
   price: string;
   image: any;
   isLiked: boolean;
+  available_sizes?: string[]; // ✅ Add available sizes field
 }
 
 interface FilterOptions {
@@ -78,7 +79,8 @@ const fetchMoreSearchResults = async (
       name: item.name,
       price: item.price,
       image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
-      isLiked: item.is_liked
+      isLiked: item.is_liked,
+      available_sizes: item.available_sizes // Map available_sizes
     }));
   } catch (error) {
     console.error('Error fetching product search results:', error);
@@ -229,7 +231,8 @@ const Search = ({ navigation }: SearchProps) => {
         name: item.name,
         price: item.price,
         image: item.image,
-        isLiked: item.isLiked // Pass the isLiked property
+        isLiked: item.isLiked, // Pass the isLiked property
+        available_sizes: item.available_sizes // ✅ Pass available sizes
       }
     };
     

@@ -28,7 +28,8 @@ import Animated, {
   withTiming, 
   Easing,
   cancelAnimation,
-  FadeOut
+  FadeOut,
+  runOnJS
 } from 'react-native-reanimated';
 import PlusSvg from './assets/Plus.svg';
 import BackIcon from './assets/Back.svg';
@@ -57,6 +58,7 @@ interface FavoriteItem {
   name: string;
   price: string;
   image: any;
+  available_sizes?: string[]; // ✅ Add available sizes field
 }
 
 // Updated interface for friend items to match API response
@@ -87,6 +89,7 @@ type RecommendedItem = {
   price: string;
   image: any;
   isLiked?: boolean;
+  available_sizes?: string[]; // ✅ Add available sizes field
 };
 
 interface UserActionButtonProps {
@@ -220,6 +223,7 @@ const Favorites = ({ navigation }: FavoritesProps) => {
     loadFriendsData();
   }, []);
 
+  // Update loadFriendsData to remove session check
   const loadFriendsData = async () => {
     try {
       setIsLoadingFriends(true);
@@ -269,15 +273,18 @@ const Favorites = ({ navigation }: FavoritesProps) => {
       setFriendItems(allFriendItems);
       setSentRequests(sent);
       setReceivedRequests(received);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading friends data:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить список друзей');
+      // Don't show alerts for authentication errors
+      if (error.status !== 401) {
+        Alert.alert('Ошибка', 'Не удалось загрузить список друзей');
+      }
     } finally {
       setIsLoadingFriends(false);
     }
   };
 
-  // Load saved items on component mount
+  // Update loadSavedItems to remove session check
   useEffect(() => {
     const loadSavedItems = async () => {
       setIsLoadingSaved(true);
@@ -289,17 +296,21 @@ const Favorites = ({ navigation }: FavoritesProps) => {
           name: item.name,
           price: item.price,
           image: i % 2 === 0 ? require('./assets/Vision.png') : require('./assets/Vision2.png'),
-          isLiked: item.is_liked
+          isLiked: item.is_liked,
+          available_sizes: item.available_sizes
         })));
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading saved items:', error);
-        setSavedItems([]);
+        // Don't show alerts for authentication errors
+        if (error.status !== 401) {
+          setSavedItems([]);
+        }
       } finally {
         setIsLoadingSaved(false);
       }
     };
     loadSavedItems();
-  }, []);
+  }, []); // Remove sessionValid dependency
 
   // Load friend recommendations on component mount
   useEffect(() => {
@@ -319,7 +330,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
           name: item.name,
           price: item.price,
           image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
-          isLiked: item.is_liked
+          isLiked: item.is_liked,
+          available_sizes: item.available_sizes
         }))
       }));
     } catch (error) {
@@ -556,7 +568,8 @@ const Favorites = ({ navigation }: FavoritesProps) => {
             name: params.name,
             price: params.price,
             image: params.image,
-            isLiked: params.isLiked // Pass the isLiked property, which may be undefined
+            isLiked: params.isLiked, // Pass the isLiked property, which may be undefined
+            available_sizes: params.available_sizes // ✅ Pass available sizes
           }
         };
         console.log('NAVIGATING TO HOME WITH PARAMS:', navigationParams);
@@ -1274,14 +1287,40 @@ const MainContent = ({
       <View style={{ flex: 1, borderRadius: 41 }}>
         {activeView === 'friends' && (
           <>
-            
-            
-            {/* Friends List */}
-            <FlatList<FriendItem>
+            {friendItems.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateText}>пора добавить первого друга</Text>
+              </View>
+            ) : (
+              <FlatList<FriendItem>
+                style={styles.flatList}
+                data={friendItems}
+                renderItem={renderFriendItem}
+                keyExtractor={item => item.id}
+                showsVerticalScrollIndicator={false}
+                numColumns={2}
+                columnWrapperStyle={styles.columnWrapper}
+                contentContainerStyle={styles.listContent}
+                removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
+                initialNumToRender={4} // Only render what's visible initially
+                maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
+                windowSize={5} // Reduce window size for performance
+              />
+            )}
+          </>
+        )}
+        
+        {activeView === 'saved' && (
+          savedItems.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>пока тут пусто</Text>
+            </View>
+          ) : (
+            <FlatList<FavoriteItem>
               style={styles.flatList}
-              data={friendItems}
-              renderItem={renderFriendItem}
-              keyExtractor={item => item.id}
+              data={savedItems}
+              renderItem={renderSavedItem}
+              keyExtractor={item => item.id.toString()}
               showsVerticalScrollIndicator={false}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}
@@ -1291,24 +1330,7 @@ const MainContent = ({
               maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
               windowSize={5} // Reduce window size for performance
             />
-          </>
-        )}
-        
-        {activeView === 'saved' && (
-          <FlatList<FavoriteItem>
-            style={styles.flatList}
-            data={savedItems}
-            renderItem={renderSavedItem}
-            keyExtractor={item => item.id.toString()}
-            showsVerticalScrollIndicator={false}
-            numColumns={2}
-            columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.listContent}
-            removeClippedSubviews={Platform.OS === 'android'} // Optimize memory usage on Android
-            initialNumToRender={4} // Only render what's visible initially
-            maxToRenderPerBatch={4} // Limit batch size for smoother scrolling
-            windowSize={5} // Reduce window size for performance
-          />
+          )
         )}
         <View style={styles.titleRow}>
           <Text style={styles.boxTitle}>
@@ -1381,31 +1403,43 @@ const BottomBoxContent = ({
     onPressOut={handleBottomBoxPressOut}
   >
     {activeView === 'friends' ? (
-      <FlatList<FavoriteItem>
-        data={savedItems.slice(0, 2)}
-        renderItem={renderSavedItem}
-        keyExtractor={item => item.id.toString()}
-        showsVerticalScrollIndicator={false}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        contentContainerStyle={styles.previewListContent}
-        scrollEnabled={false}
-        removeClippedSubviews={Platform.OS === 'android'} // Android optimization
-        maxToRenderPerBatch={2} // Keep it small
-      />
+      savedItems.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
+          <Text style={styles.emptyStateText}>Нет сохранённых товаров</Text>
+        </View>
+      ) : (
+        <FlatList<FavoriteItem>
+          data={savedItems.slice(0, 2)}
+          renderItem={renderSavedItem}
+          keyExtractor={item => item.id.toString()}
+          showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.previewListContent}
+          scrollEnabled={false}
+          removeClippedSubviews={Platform.OS === 'android'} // Android optimization
+          maxToRenderPerBatch={2} // Keep it small
+        />
+      )
     ) : (
-      <FlatList<FriendItem>
-        data={friendItems.slice(0, 2)}
-        renderItem={renderFriendItem}
-        keyExtractor={item => item.id}
-        showsVerticalScrollIndicator={false}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        contentContainerStyle={styles.previewListContent}
-        scrollEnabled={false}
-        removeClippedSubviews={Platform.OS === 'android'} // Android optimization
-        maxToRenderPerBatch={2} // Keep it small
-      />
+      friendItems.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
+          <Text style={styles.emptyStateText}>Нет друзей</Text>
+        </View>
+      ) : (
+        <FlatList<FriendItem>
+          data={friendItems.slice(0, 2)}
+          renderItem={renderFriendItem}
+          keyExtractor={item => item.id}
+          showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.previewListContent}
+          scrollEnabled={false}
+          removeClippedSubviews={Platform.OS === 'android'} // Android optimization
+          maxToRenderPerBatch={2} // Keep it small
+        />
+      )
     )}
     <Text style={styles.boxTitle}>
       {activeView === 'friends' ? 'СОХРАНЁНКИ' : 'ДРУЗЬЯ'}
@@ -1650,7 +1684,8 @@ const FriendProfileView = React.memo(({
           name: item.name,
           price: item.price,
           image: item.image_url ? { uri: item.image_url } : require('./assets/Vision.png'),
-          isLiked: item.is_liked
+          isLiked: item.is_liked,
+          available_sizes: item.available_sizes
         }));
         setCustomRecommendations((prev: {[key: string]: RecommendedItem[]}) => ({ ...prev, [friend.id]: recommendedItems }));
       } catch (error) {
@@ -2457,6 +2492,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontFamily: 'IgraSans',
+    fontSize: 32,
+    color: '#fff',
+    textAlign: 'center',
+  }
 });
 
 // Add above Favorites component

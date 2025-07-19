@@ -77,6 +77,7 @@ interface CardItem {
   isLiked?: boolean;
   size?: string;
   quantity?: number;
+  available_sizes?: string[]; // Add available sizes for the product
 }
 
 // Add a constant for the minimum number of cards to maintain
@@ -104,6 +105,7 @@ const fetchMoreCards = async (count: number = 2): Promise<CardItem[]> => {
       price: p.price,
       image: i % 2 === 0 ? fallbackImage : vision2Image,
       isLiked: p.is_liked === true,
+      available_sizes: p.available_sizes || ['XS', 'S', 'M', 'L', 'XL'], // Use API data or fallback to default sizes
     }));
   } catch (error: any) {
     if (error && error.message && error.message.toLowerCase().includes('invalid token')) {
@@ -275,6 +277,7 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSizeSelection, setShowSizeSelection] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [userSelectedSize, setUserSelectedSize] = useState<string | null>(null);
 
   // Animation state for buttons
   const cartButtonScale = useRef(new RNAnimated.Value(1)).current;
@@ -283,6 +286,22 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   // Initialize cards state with a callback to avoid unnecessary updates
   const [cards, setCards] = useState<CardItem[]>([]);
   const [isLoadingInitialCards, setIsLoadingInitialCards] = useState(true);
+
+  // Fetch user's selected size from profile
+  useEffect(() => {
+    const fetchUserSize = async () => {
+      try {
+        const userProfile = await api.getCurrentUser();
+        setUserSelectedSize(userProfile.selected_size || null);
+        console.log('MainPage - User selected size:', userProfile.selected_size);
+      } catch (error) {
+        console.error('Error fetching user size:', error);
+        setUserSelectedSize(null);
+      }
+    };
+    
+    fetchUserSize();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -705,8 +724,17 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
   };
 
   const handleSizeSelect = (size: string) => {
-    // Add the current card with selected size to cart
     const currentCard = cards[currentCardIndex];
+    
+    // Check if the size is available for this product
+    if (!currentCard?.available_sizes?.includes(size)) {
+      console.log('MainPage - Size not available:', size);
+      // Provide haptic feedback for unavailable sizes
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      return;
+    }
+    
+    // Add the current card with selected size to cart
     const cartItem: CartItem = {
       id: currentCard.id,
       name: currentCard.name,
@@ -867,15 +895,35 @@ const MainPage = ({ navigation, route }: MainPageProps) => {
             }
           ]}
         >
-          {sizes.map((size) => (
-            <Pressable 
-              key={size} 
-              style={styles.sizeCircle}
-              onPress={() => handleSizeSelect(size)}
-            >
-              <Text style={styles.sizeText}>{size}</Text>
-            </Pressable>
-          ))}
+          {sizes.map((size) => {
+            const currentCard = cards[currentCardIndex];
+            const isAvailable = currentCard?.available_sizes?.includes(size) || false;
+            const isUserSize = size === userSelectedSize;
+            
+            return (
+              <Pressable 
+                key={size} 
+                style={[
+                  styles.sizeCircle,
+                  isAvailable ? styles.sizeCircleAvailable : styles.sizeCircleUnavailable,
+                  isUserSize && isAvailable ? styles.sizeCircleUserSize : null
+                ]}
+                onPress={() => {
+                  if (isAvailable) {
+                    handleSizeSelect(size);
+                  } else {
+                    // Provide haptic feedback for unavailable sizes
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                }}
+                disabled={!isAvailable}
+              >
+                <Text style={styles.sizeText}>
+                  {size}
+                </Text>
+              </Pressable>
+            );
+          })}
         </RNAnimated.View>
       </RNAnimated.View>
     );
@@ -1232,8 +1280,17 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  sizeCircleAvailable: {
+    backgroundColor: '#E2CCB2', // Available sizes
+  },
+  sizeCircleUnavailable: {
+    backgroundColor: '#BFBBB8', // Unavailable sizes
+  },
+  sizeCircleUserSize: {
+    backgroundColor: '#CDA67A', // Highlight user's selected size
+  },
   sizeText: {
-    color: 'white',
+    color: '#000',
     fontWeight: 'bold',
     fontSize: 16,
   },

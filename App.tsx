@@ -113,22 +113,39 @@ export default function App() {
     Settings: {}
   });
 
-  // Global session expiration handler
+  // Global session expiration handler - this is the ONLY place that handles session expiry
   useEffect(() => {
     const unsubscribe = sessionManager.addListener((event) => {
       if (event === 'login_required') {
+        console.log('App - Session expired, blocking all screens');
         setSessionExpired(true);
+        // Clear all state immediately to prevent any authenticated screens from rendering
+        setShowConfirmationScreen(false);
+        setShowBrandSearchScreen(false);
+        setShowStylesSelectionScreen(false);
+        setProfileCompletionStatus(null);
+        setGender(null);
+        setSelectedBrands([]);
+        setCurrentScreen('Home');
+        setScreenParams({
+          Home: {},
+          Cart: {},
+          Search: {},
+          Favorites: {},
+          Settings: {}
+        });
+        setShowLoading(false);
+        setShowAuthLoading(false);
       }
     });
     return unsubscribe;
   }, []);
 
-  // Suppress sessionError Alert (remove the old useEffect for sessionError)
-
-  // Handler for re-login
+  // Handler for re-login - simplified to avoid double login
   const handleRelogin = () => {
     setSessionExpired(false);
-    logout(); // This will clear state and show the login screen
+    // Don't call logout() here as it might cause issues
+    // Just clear the modal and let the user navigate to login naturally
   };
 
   // Initialize cart from storage
@@ -169,7 +186,7 @@ export default function App() {
         
         console.log('Profile completion status:', JSON.stringify(completionStatus));
         
-        if (!completionStatus.isComplete) {
+        if (!completionStatus.isComplete && completionStatus.requiredScreens.length > 0) {
           // Profile is incomplete, determine which screen to show
           console.log('Profile incomplete, required screens:', completionStatus.requiredScreens);
           
@@ -183,22 +200,24 @@ export default function App() {
             setSelectedBrands(await getUserSelectedBrands());
             setShowStylesSelectionScreen(true);
           } else {
-            // If not initial load or no required screens, go to home
+            // If not initial load or no required screens, go to main app
+            // This allows users to proceed even with incomplete profiles
+            console.log('Proceeding to main app despite incomplete profile');
             setComingFromSignup(false);
-            setShowLoading(true);
+            setShowLoading(false); // ✅ Set loading to false to show main app
           }
         } else {
-          // Profile is complete, show loading screen for returning users
-          console.log('Profile complete, showing loading screen for returning user');
+          // Profile is complete or no required screens, show main app
+          console.log('Profile complete or no required screens, showing main app');
           setComingFromSignup(false);
-          setShowLoading(true);
+          setShowLoading(false); // ✅ Set loading to false to show main app
         }
         setIsInitialLoad(false); // Set to false after initial check
       } catch (error) {
         console.error('Error checking profile completion:', error);
-        // If error fetching profile status, assume complete and show loading
+        // If error fetching profile status, assume complete and show main app
         setComingFromSignup(false);
-        setShowLoading(true);
+        setShowLoading(false); // ✅ Set loading to false to show main app
         setIsInitialLoad(false); // Set to false after initial check
       }
     };
@@ -286,7 +305,7 @@ export default function App() {
       
       console.log('Profile completion status after login:', JSON.stringify(completionStatus));
       
-      if (!completionStatus.isComplete) {
+      if (!completionStatus.isComplete && completionStatus.requiredScreens.length > 0) {
         // Profile is incomplete, determine which screen to show
         console.log('Profile incomplete after login, required screens:', completionStatus.requiredScreens);
         
@@ -299,18 +318,23 @@ export default function App() {
           setGender(await getUserGender());
           setSelectedBrands(await getUserSelectedBrands());
           setShowStylesSelectionScreen(true);
+        } else {
+          // No required screens, go to main app
+          console.log('No required screens after login, going to main app');
+          setComingFromSignup(false);
+          setShowLoading(false); // ✅ Set loading to false to show main app
         }
       } else {
-        // Profile is complete, show loading screen
-        console.log('Profile complete after login, showing loading screen');
+        // Profile is complete or no required screens, show main app
+        console.log('Profile complete after login, showing main app');
         setComingFromSignup(false);
-        setShowLoading(true);
+        setShowLoading(false); // ✅ Set loading to false to show main app
       }
     } catch (error) {
       console.error('Error checking profile completion after login:', error);
       // If error, proceed with normal login flow
       setComingFromSignup(false);
-      setShowLoading(true);
+      setShowLoading(false); // ✅ Set loading to false to show main app
     }
   };
 
@@ -328,7 +352,7 @@ export default function App() {
       
       console.log('Profile completion status after registration:', JSON.stringify(completionStatus));
       
-      if (!completionStatus.isComplete) {
+      if (!completionStatus.isComplete && completionStatus.requiredScreens.length > 0) {
         // Profile is incomplete, determine which screen to show
         console.log('Profile incomplete after registration, required screens:', completionStatus.requiredScreens);
         
@@ -341,18 +365,23 @@ export default function App() {
           setGender(await getUserGender());
           setSelectedBrands(await getUserSelectedBrands());
           setShowStylesSelectionScreen(true);
+        } else {
+          // No required screens, go to main app
+          console.log('No required screens after registration, going to main app');
+          setComingFromSignup(false);
+          setShowLoading(false); // ✅ Set loading to false to show main app
         }
       } else {
-        // Profile is complete, show loading screen
-        console.log('Profile complete after registration, showing loading screen');
+        // Profile is complete or no required screens, show main app
+        console.log('Profile complete after registration, showing main app');
         setComingFromSignup(false);
-        setShowLoading(true);
+        setShowLoading(false); // ✅ Set loading to false to show main app
       }
     } catch (error) {
       console.error('Error checking profile completion after registration:', error);
       // If error, proceed with normal registration flow
       setComingFromSignup(false);
-      setShowLoading(true);
+      setShowLoading(false); // ✅ Set loading to false to show main app
     }
   };
 
@@ -417,7 +446,7 @@ export default function App() {
       } else {
         // Profile is complete, go to main app
         setShowConfirmationScreen(false);
-        // For users completing their profile, skip the loading screen
+        setShowLoading(false); // ✅ Set loading to false to show main app
         setComingFromSignup(true);
       }
     } catch (error) {
@@ -448,7 +477,7 @@ export default function App() {
       } else {
         // Profile is complete, go to main app
         setShowBrandSearchScreen(false);
-        // For users completing their profile, skip the loading screen
+        setShowLoading(false); // ✅ Set loading to false to show main app
         setComingFromSignup(true);
       }
     } catch (error) {
@@ -480,12 +509,13 @@ export default function App() {
       
       // Complete profile flow
       setShowStylesSelectionScreen(false);
-      // For users completing their profile, skip the loading screen
+      setShowLoading(false); // ✅ Set loading to false to show main app
       setComingFromSignup(true);
     } catch (error) {
       console.error('Error updating favorite styles:', error);
       // Even in case of error, complete the profile flow
       setShowStylesSelectionScreen(false);
+      setShowLoading(false); // ✅ Set loading to false to show main app
       setComingFromSignup(true);
     }
   };
@@ -658,6 +688,27 @@ export default function App() {
     return null; // Don't render until fonts are loaded
   }
 
+  // GLOBAL SESSION EXPIRY HANDLING - This blocks ALL screens when session is expired
+  if (sessionExpired) {
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        <Modal visible={true} transparent animationType="fade">
+          <View style={{
+            flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'
+          }}>
+            <View style={{
+              backgroundColor: 'white', padding: 24, borderRadius: 12, alignItems: 'center'
+            }}>
+              <Text style={{ fontSize: 18, marginBottom: 16 }}>Сессия истекла</Text>
+              <Text style={{ fontSize: 14, marginBottom: 24 }}>Пожалуйста, войдите снова.</Text>
+              <Button title="Войти" onPress={handleRelogin} />
+            </View>
+          </View>
+        </Modal>
+      </GestureHandlerRootView>
+    );
+  }
+
   // If not logged in, show the welcome screen
   if (!isAuthenticated) {
     return (
@@ -803,20 +854,6 @@ export default function App() {
           )}
         </SafeAreaView>
       </LinearGradient>
-      {/* Place this Modal at the root so it overlays everything */}
-      <Modal visible={sessionExpired} transparent animationType="fade">
-        <View style={{
-          flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'
-        }}>
-          <View style={{
-            backgroundColor: 'white', padding: 24, borderRadius: 12, alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 18, marginBottom: 16 }}>Сессия истекла</Text>
-            <Text style={{ fontSize: 14, marginBottom: 24 }}>Пожалуйста, войдите снова.</Text>
-            <Button title="Войти" onPress={handleRelogin} />
-          </View>
-        </View>
-      </Modal>
     </GestureHandlerRootView>
   );
 }

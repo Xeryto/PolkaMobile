@@ -15,17 +15,30 @@ export type SessionEvent = 'token_expired' | 'token_refreshed' | 'session_cleare
 // Session event listener type
 export type SessionEventListener = (event: SessionEvent) => void;
 
+// Add session state tracking
+export enum SessionState {
+  UNKNOWN = 'unknown',
+  VALID = 'valid',
+  EXPIRED = 'expired',
+  REFRESHING = 'refreshing'
+}
+
 // Session manager class
 class SessionManager {
   private listeners: SessionEventListener[] = [];
   private isRefreshing = false;
   private refreshPromise: Promise<string> | null = null;
+  private sessionState: SessionState = SessionState.UNKNOWN;
+  private logoutInProgress = false;
 
   // Add event listener
   addListener(listener: SessionEventListener) {
     this.listeners.push(listener);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
+      const index = this.listeners.indexOf(listener);
+      if (index > -1) {
+        this.listeners.splice(index, 1);
+      }
     };
   }
 
@@ -37,94 +50,129 @@ class SessionManager {
   // Check if token is expired or will expire soon (within 5 minutes)
   private isTokenExpiredOrExpiringSoon(expiryDate: Date): boolean {
     const now = new Date();
-    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
-    return expiryDate <= fiveMinutesFromNow;
+    const timeUntilExpiry = expiryDate.getTime() - now.getTime();
+    return timeUntilExpiry <= 5 * 60 * 1000; // 5 minutes
   }
 
   // Refresh token
   async refreshToken(): Promise<string> {
-    if (this.isRefreshing) {
-      return this.refreshPromise!;
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
     }
 
     this.isRefreshing = true;
-    this.refreshPromise = (async () => {
-      try {
-        const refreshToken = await SecureStore.getItemAsync(SESSION_REFRESH_TOKEN_KEY);
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
+    this.sessionState = SessionState.REFRESHING;
+    this.refreshPromise = this.performTokenRefresh();
 
-        const response = await refreshAuthToken(refreshToken);
-        await this.storeSession(response.token, response.expires_at, response.refresh_token);
-        this.emit('token_refreshed');
-        return response.token;
-      } catch (error) {
-        await this.clearSession();
-        this.emit('login_required');
-        throw new Error('Token refresh failed');
-      } finally {
-        this.isRefreshing = false;
-        this.refreshPromise = null;
+    try {
+      const newToken = await this.refreshPromise;
+      this.sessionState = SessionState.VALID;
+      this.emit('token_refreshed');
+      return newToken;
+    } catch (error) {
+      this.sessionState = SessionState.EXPIRED;
+      this.handleSessionExpiration();
+      throw error;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<string> {
+    try {
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
       }
-    })();
 
-    return this.refreshPromise;
+      const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      await this.storeSession(data.token, data.expires_at, data.refresh_token);
+      return data.token;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
   }
 
   // Store session
   async storeSession(token: string, expiresAt: string, refreshToken?: string) {
     try {
-      await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
-      await SecureStore.setItemAsync(SESSION_EXPIRY_KEY, expiresAt);
+      await AsyncStorage.setItem('authToken', token);
+      await AsyncStorage.setItem('tokenExpiry', expiresAt);
       if (refreshToken) {
-        await SecureStore.setItemAsync(SESSION_REFRESH_TOKEN_KEY, refreshToken);
+        await AsyncStorage.setItem('refreshToken', refreshToken);
       }
+      this.sessionState = SessionState.VALID;
     } catch (error) {
       console.error('Error storing session:', error);
-      throw error;
     }
   }
 
   // Get current session with automatic refresh
   async getValidSession(): Promise<{ token: string | null, isValid: boolean }> {
     try {
-      const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
-      const expiryString = await SecureStore.getItemAsync(SESSION_EXPIRY_KEY);
-      
-      if (!token || !expiryString) {
+      // If we know session is expired, don't even try
+      if (this.sessionState === SessionState.EXPIRED) {
         return { token: null, isValid: false };
       }
-      
-      const expiryDate = new Date(expiryString);
+
+      const token = await AsyncStorage.getItem('authToken');
+      const expiryStr = await AsyncStorage.getItem('tokenExpiry');
+
+      if (!token || !expiryStr) {
+        this.sessionState = SessionState.EXPIRED;
+        return { token: null, isValid: false };
+      }
+
+      const expiryDate = new Date(expiryStr);
       
       if (this.isTokenExpiredOrExpiringSoon(expiryDate)) {
+        // Try to refresh the token
         try {
           const newToken = await this.refreshToken();
           return { token: newToken, isValid: true };
         } catch (error) {
+          this.sessionState = SessionState.EXPIRED;
+          this.handleSessionExpiration();
           return { token: null, isValid: false };
         }
       }
-      
+
+      this.sessionState = SessionState.VALID;
       return { token, isValid: true };
     } catch (error) {
-      console.error('Error getting session:', error);
+      console.error('Error getting valid session:', error);
+      this.sessionState = SessionState.EXPIRED;
       return { token: null, isValid: false };
     }
   }
 
   // Clear session
   async clearSession() {
+    if (this.logoutInProgress) return; // Prevent multiple simultaneous logouts
+    
+    this.logoutInProgress = true;
     try {
-      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(SESSION_REFRESH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(SESSION_EXPIRY_KEY);
-      await AsyncStorage.removeItem(USER_PROFILE_KEY);
+      await AsyncStorage.multiRemove(['authToken', 'tokenExpiry', 'refreshToken', 'userProfile']);
+      this.sessionState = SessionState.EXPIRED;
       this.emit('session_cleared');
     } catch (error) {
       console.error('Error clearing session:', error);
-      throw error;
+    } finally {
+      this.logoutInProgress = false;
     }
   }
 
@@ -136,7 +184,20 @@ class SessionManager {
 
   // Public method to handle login required
   handleLoginRequired() {
-    this.emit('login_required');
+    if (this.sessionState !== SessionState.EXPIRED) {
+      this.sessionState = SessionState.EXPIRED;
+      this.emit('login_required');
+    }
+  }
+
+  private handleSessionExpiration() {
+    if (!this.logoutInProgress) {
+      this.handleLoginRequired();
+    }
+  }
+
+  getSessionState(): SessionState {
+    return this.sessionState;
   }
 }
 
@@ -263,43 +324,51 @@ const apiRequest = async (
   body?: any,
   requireAuth: boolean = true
 ) => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (requireAuth) {
-    const session = await sessionManager.getValidSession();
-    if (!session.isValid) {
+  try {
+    let token: string | null = null;
+    let isValid = false;
+
+    // Only check session if authentication is required
+    if (requireAuth) {
+      const session = await sessionManager.getValidSession();
+      token = session.token;
+      isValid = session.isValid;
+      
+      if (!isValid) {
+        sessionManager.handleLoginRequired();
+        throw new ApiError('Authentication required', 401);
+      }
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (response.status === 401) {
+      // Only trigger logout once per request and only if auth was required
+      if (requireAuth) {
+        sessionManager.handleLoginRequired();
+      }
       throw new ApiError('Authentication required', 401);
     }
-    headers['Authorization'] = `Bearer ${session.token}`;
-  }
-  
-  const config: RequestInit = {
-    method,
-    headers,
-  };
-  
-  if (body) {
-    config.body = JSON.stringify(body);
-  }
-  
-  try {
-    const response = await fetch(`${API_URL}${endpoint}`, config);
-    
-    if (response.status === 401 && requireAuth) {
-      await sessionManager.clearSession();
-      sessionManager.handleLoginRequired();
-    }
-    
+
     return await handleApiResponse(response);
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    } else {
-      console.error('API request failed:', error);
-      throw new ApiError('Network error', 0);
+    if (error instanceof ApiError && error.status === 401) {
+      // Don't show authentication errors to users, just log them
+      console.log('API authentication error:', error.message);
     }
+    throw error;
   }
 };
 
@@ -599,6 +668,18 @@ export const healthCheck = async (): Promise<any> => {
   return await apiRequest('/health', 'GET', undefined, false);
 };
 
+// Password reset simulation
+export const simulateResetPassword = async (usernameOrEmail: string): Promise<boolean> => {
+  try {
+    // Simulate API call for password reset
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return true; // Always return true for simulation
+  } catch (error) {
+    console.error('Error simulating password reset:', error);
+    return false;
+  }
+};
+
 // Toggle favorite (like/unlike) a product
 export const toggleFavorite = async (productId: string, action: 'like' | 'unlike'): Promise<{ message: string }> => {
   return await apiRequest('/api/v1/user/favorites/toggle', 'POST', {
@@ -614,6 +695,7 @@ export interface RecommendationProduct {
   price: string;
   image_url: string | null;
   is_liked: boolean;
+  available_sizes?: string[]; // Add available sizes field
 }
 
 export const getUserRecommendations = async (): Promise<RecommendationProduct[]> => {
@@ -627,6 +709,7 @@ export interface FriendRecommendationProduct {
   price: string;
   image_url: string | null;
   is_liked: boolean;
+  available_sizes?: string[]; // ✅ Add available sizes field
 }
 
 export const getFriendRecommendations = async (friendId: string): Promise<FriendRecommendationProduct[]> => {

@@ -25,7 +25,7 @@ interface DeliveryInfo {
 
 // Update the CartItem interface to ensure delivery is required
 interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: string;
   size: string;
@@ -37,7 +37,7 @@ interface CartItem {
 }
 
 // Simulate API call to get delivery information for an item
-const getItemDeliveryInfo = (itemId: number, quantity: number): Promise<DeliveryInfo> => {
+const getItemDeliveryInfo = (itemId: string, quantity: number): Promise<DeliveryInfo> => {
   return new Promise((resolve) => {
     // Simulate network delay
     setTimeout(() => {
@@ -47,10 +47,11 @@ const getItemDeliveryInfo = (itemId: number, quantity: number): Promise<Delivery
       let time = '1-3 дня';
       
       // Randomize delivery times and costs a bit based on itemId
-      if (itemId % 3 === 0) {
+      const numericId = parseInt(itemId) || 0;
+      if (numericId % 3 === 0) {
         cost = '250 р';
         time = '2-4 дня';
-      } else if (itemId % 2 === 0) {
+      } else if (numericId % 2 === 0) {
         cost = '400 р';
         time = '1 день';
       }
