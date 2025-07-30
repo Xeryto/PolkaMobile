@@ -81,7 +81,7 @@ class SessionManager {
 
   private async performTokenRefresh(): Promise<string> {
     try {
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync('refreshToken');
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -110,10 +110,10 @@ class SessionManager {
   // Store session
   async storeSession(token: string, expiresAt: string, refreshToken?: string) {
     try {
-      await AsyncStorage.setItem('authToken', token);
-      await AsyncStorage.setItem('tokenExpiry', expiresAt);
+      await SecureStore.setItemAsync('authToken', token);
+      await AsyncStorage.setItem('tokenExpiry', expiresAt); // Expiry can remain in AsyncStorage
       if (refreshToken) {
-        await AsyncStorage.setItem('refreshToken', refreshToken);
+        await SecureStore.setItemAsync('refreshToken', refreshToken);
       }
       this.sessionState = SessionState.VALID;
     } catch (error) {
@@ -129,7 +129,7 @@ class SessionManager {
         return { token: null, isValid: false };
       }
 
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await SecureStore.getItemAsync('authToken');
       const expiryStr = await AsyncStorage.getItem('tokenExpiry');
 
       if (!token || !expiryStr) {
@@ -166,7 +166,9 @@ class SessionManager {
     
     this.logoutInProgress = true;
     try {
-      await AsyncStorage.multiRemove(['authToken', 'tokenExpiry', 'refreshToken', 'userProfile']);
+      await SecureStore.deleteItemAsync('authToken');
+      await SecureStore.deleteItemAsync('refreshToken');
+      await AsyncStorage.multiRemove(['tokenExpiry', 'userProfile']);
       this.sessionState = SessionState.EXPIRED;
       this.emit('session_cleared');
     } catch (error) {
@@ -733,4 +735,76 @@ export const getProductSearchResults = async (params: Record<string, any>): Prom
 // Get all categories
 export const getCategories = async (): Promise<any[]> => {
   return await apiRequest('/api/v1/categories', 'GET', undefined, false);
+};
+
+// Payment API functions
+export interface Amount {
+  value: string;
+  currency: string;
+}
+
+export interface ReceiptItem {
+  product_id: string;
+  //quantity: number;
+  size: string;
+}
+
+export interface ReceiptCustomer {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface PaymentCreateRequest {
+  amount: Amount;
+  description: string;
+  items: ReceiptItem[];
+  returnUrl: string;
+}
+
+export interface PaymentCreateResponse {
+  confirmation_url: string;
+  payment_id: string;
+}
+
+export const createPayment = async (paymentDetails: PaymentCreateRequest): Promise<PaymentCreateResponse> => {
+  console.log(paymentDetails)
+  const response = await apiRequest('/api/v1/payments/create', 'POST', paymentDetails);
+  return response as PaymentCreateResponse;
+};
+
+export interface PaymentStatusResponse {
+  status: 'pending' | 'waiting_for_capture' | 'succeeded' | 'canceled';
+}
+
+export const getPaymentStatus = async (paymentId: string): Promise<PaymentStatusResponse> => {
+  return await apiRequest(`/api/v1/payments/status?payment_id=${paymentId}`, 'GET');
+};
+
+// Order History
+export interface OrderItem {
+  id: string; // This would be the product_id
+  name: string;
+  price: string; // Formatted price
+  size: string;
+  image: string; // URL to the image
+  quantity: number;
+  delivery: {
+    cost: string;
+    estimatedTime: string;
+    tracking_number: string | null;
+  };
+}
+
+export interface Order {
+  id: string; // Order ID
+  number: string; // User-facing order number
+  total: string; // Formatted total
+  date: string; // ISO date string
+  status: string;
+  items: OrderItem[];
+}
+
+export const getOrders = async (): Promise<Order[]> => {
+  return await apiRequest('/api/v1/orders', 'GET');
 };

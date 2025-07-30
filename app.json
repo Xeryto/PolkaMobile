@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./app/assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "polkamobile",
     "newArchEnabled": true,
     "splash": {
       "image": "./app/assets/splash-icon.png",
@@ -39,6 +40,10 @@
     },
     "updates": {
       "url": "https://u.expo.dev/74d77e39-6b44-4eab-ba2a-5a9a5afb5968"
-    }
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-build-properties"
+    ]
   }
 }

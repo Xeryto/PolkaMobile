@@ -87,10 +87,13 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [popularBrands, setPopularBrands] = useState<string[]>([]);
   const [showBrandSearch, setShowBrandSearch] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<{ id: string; number: string; items: any[]; total: string; } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<api.Order | null>(null);
   const [supportMessage, setSupportMessage] = useState('');
   const [showThankYou, setShowThankYou] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [orders, setOrders] = useState<api.Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   
   // NEW: User profile state
   const [userProfile, setUserProfile] = useState<api.UserProfile | null>(null);
@@ -116,6 +119,26 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     loadUserProfile();
     loadBrands();
   }, []);
+
+  useEffect(() => {
+    if (activeSection === 'orders') {
+      loadOrders();
+    }
+  }, [activeSection]);
+
+  const loadOrders = async () => {
+    try {
+      setIsLoadingOrders(true);
+      setOrderError(null);
+      const fetchedOrders = await api.getOrders();
+      setOrders(fetchedOrders);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      setOrderError('Не удалось загрузить заказы.');
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
 
   const loadUserProfile = async () => {
     try {
@@ -538,8 +561,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
     >
       {renderMainButton('Стена', 'wall', 50)}
       {renderMainButton('Заказы', 'orders', 100)}
-      {renderMainButton('Способ оплаты', 'payment', 150)}
-      {renderMainButton('Поддержка', 'support', 200)}
+      {renderMainButton('Поддержка', 'support', 150)}
     </Animated.View>
           </Animated.View>
         );
@@ -646,7 +668,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
         <ScrollView style={styles.orderItemsList} showsVerticalScrollIndicator={false}>
           {selectedOrder?.items.map((item, index) => (
           <Animated.View 
-            key={item.cartItemId || `${item.id}-${item.size}-${index}`}
+            key={item.id}
             entering={FadeInDown.duration(500).delay(100 + index * 50)}
             style={styles.cartItem}
           >
@@ -708,54 +730,11 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
   );
 
   const renderOrdersContent = () => {
-    const orders = [
-      { 
-        id: '1', 
-        number: '12345', 
-        items: [
-          { id: '1', name: 'Nike', price: '15 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
-          { id: '2', name: 'Levi\'s', price: '20 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
-          { id: '3', name: 'Adidas', price: '10 000 р', size: '42', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
-        ],
-        total: '45 000 р', 
-        date: '12.03.2024' 
-      },
-      { 
-        id: '2', 
-        number: '12346', 
-        items: [
-          { id: '4', name: 'Куртка The North Face', price: '15 000 р', size: 'XL', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
-        ],
-        total: '15 000 р', 
-        date: '10.03.2024' 
-      },
-      { 
-        id: '3', 
-        number: '12347', 
-        items: [
-          { id: '5', name: 'Рубашка Tommy Hilfiger', price: '20 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
-          { id: '6', name: 'Брюки Calvin Klein', price: '10 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
-        ],
-        total: '30 000 р', 
-        date: '08.03.2024' 
-      },
-      { 
-        id: '4', 
-        number: '12367', 
-        items: [
-          { id: '5', name: 'Рубашка Tommy Hilfiger', price: '20 000 р', size: 'M', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } },
-          { id: '6', name: 'Брюки Calvin Klein', price: '10 000 р', size: 'L', image: require('./assets/Vision.png'), delivery: { cost: '350 р', estimatedTime: '1-3 дня' } }
-        ],
-        total: '30 000 р', 
-        date: '08.03.2024' 
-      },
-    ];
-
     if (selectedOrder) {
       return renderOrderDetails();
     }
 
-        return (
+    return (
       <View style={styles.contentContainer}>
         <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
           <TouchableOpacity onPress={() => setActiveSection(null)}>
@@ -764,7 +743,11 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.ordersContainer}>
-          {orders.length === 0 ? (
+          {isLoadingOrders ? (
+            <Text style={styles.emptyStateText}>Загрузка заказов...</Text>
+          ) : orderError ? (
+            <Text style={styles.emptyStateText}>{orderError}</Text>
+          ) : orders.length === 0 ? (
             <>
               <Text style={styles.emptyStateText}>У вас пока нет заказов</Text>
               <Pressable 
@@ -777,7 +760,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
           ) : (
             <ScrollView style={styles.ordersList} showsVerticalScrollIndicator={false}>
               {orders.map((order, index) => (
-          <Animated.View 
+                <Animated.View 
                   key={order.id}
                   entering={FadeInDown.duration(500).delay(300 + index * 50)}
                   style={styles.orderItem}
@@ -791,7 +774,7 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
                   <Text style={styles.orderSummary}>
                     Итого: {order.total}
                   </Text>
-          </Animated.View>
+                </Animated.View>
               ))}
             </ScrollView>
           )}
@@ -799,29 +782,6 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
       </View>
     );
   };
-
-  const renderPaymentContent = () => (
-    <View style={styles.contentContainer}>
-      <Animated.View style={styles.backButton} entering={FadeInDown.duration(500).delay(200)}>
-        <TouchableOpacity onPress={() => setActiveSection(null)}>
-          <BackIcon width={33} height={33} />
-        </TouchableOpacity>
-          </Animated.View>
-
-      <Animated.View entering={FadeInDown.duration(500).delay(250)}>
-        <Text style={styles.sectionTitle}>Способ оплаты</Text>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.paymentContainer}>
-        <Pressable style={styles.paymentMethodButton}>
-          <Text style={styles.paymentMethodText}>Добавить карту</Text>
-        </Pressable>
-        <Text style={styles.paymentInfoText}>
-          Добавьте способ оплаты для быстрых покупок
-        </Text>
-      </Animated.View>
-    </View>
-  );
 
   const renderSupportContent = () => (
     <View style={styles.contentContainer}>
@@ -879,8 +839,6 @@ const Settings = ({ navigation, onLogout }: SettingsProps) => {
         return renderWallContent();
       case 'orders':
         return renderOrdersContent();
-      case 'payment':
-        return renderPaymentContent();
       case 'support':
         return renderSupportContent();
       default:
